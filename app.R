@@ -326,7 +326,7 @@ br(),
 actionButton('evaluate','Evaluate'),
 br(),
 br(),
-dataTableOutput('results')
+dataTableOutput('results'),
 br(),
 br()
   
