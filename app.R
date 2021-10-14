@@ -749,7 +749,6 @@ server <- function(input, output, session) {
       }
 
       result_dt <- rbindlist(result_list)
-      browser()
       datatable(result_dt, 
                 rownames = FALSE,
                 # fillContainer = TRUE,
