@@ -167,6 +167,7 @@ chunk <- function(x, n, force.number.of.groups = TRUE, len = length(x), groups =
 }
 
 style <- "
+.highcharts-plot-band-label{ color:#ffffff;}
 .panel {background-color:#34495e !important;}
 body {background-color:#34495e}
 input[type='search'] {
