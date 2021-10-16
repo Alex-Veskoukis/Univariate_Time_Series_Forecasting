@@ -118,13 +118,13 @@ h3('Algorithms Settings'),
               tabPanel("GARCH", icon = icon("line-chart"), h4("GARCH"), 
                        br(), 
                        inputPanel(
-                         column(12, h4('variance model'),
+                         column(12, h4('Variance model'),
                                 selectInput(inputId = 'model', label = 'Model', choices = c( "sGARCH", "fGARCH", "eGARCH", "gjrGARCH", "apARCH" , "iGARCH" , "csGARCH"),selected = "sGARCH"),
                                 numericInput('grach_variance_p','AR order',value = 1, min=0 , max = 10,step=1),
                                 numericInput('grach_variance_q','MA order',value = 1,min=0 , max = 10,step=1),
-                                selectInput(label = 'submodel', inputId = 'Submodel', choices = c( "GARCH", "TGARCH", "AVGARCH", "NGARCH", "NAGARCH", "APARCH","GJRGARCH" , "ALLGARCH"),selected = "GARCH")
+                                selectInput(inputId = 'submodel', label = 'Submodel', choices = c( "GARCH", "TGARCH", "AVGARCH", "NGARCH", "NAGARCH", "APARCH","GJRGARCH" , "ALLGARCH"),selected = "GARCH")
                                 ),
-                         column(12,h4('mean model'),
+                         column(12,h4('Mean model'),
                                 numericInput('grach_mean_p','AR order',value = 1,min=0 , max = 10,step=1),
                                 numericInput('grach_mean_q','MA order',value = 1, min=0 ,max = 10,step=1),
                                 checkboxInput('include.mean', 'Include mean', value = ),
@@ -141,7 +141,13 @@ h3('Algorithms Settings'),
                                               'the normal inverse gaussian distribution'="nig" ,
                                               'Generalized Hyperbolic'= "ghyp" , 
                                               "Johnson's SU" = "jsu"),
-                                              selected = "std"))),
+                                              selected = "std")),
+                         column(12,
+                         selectInput(inputId = 'solver', label = h4('Select solver'),
+                                     choices = c( "nlminb", "solnp", "lbfgs", "gosolnp", "nloptr" , "hybrid"),
+                                     selected = "solnp"))),
+                       
+                       
                        value=4),
 
               
@@ -186,10 +192,10 @@ server <- function(input, output, session) {
     req(input$variable)
     series <- reactiveVariables$Series[[input$variable]]
     if(input$evaluation_type == 1){
-      sliderInput('holdout', 'Hold-Out observations', value = 1, min = 1, max = floor(length(series)/3), step = 1)
+      sliderInput('holdout', 'Hold-Out observations', value = 1, min = 1, max = 10, step = 1)
     }
     else{
-      sliderInput('horizon', 'Horizon', value = 1, min = 1, max = 10, step = 1)
+      sliderInput('horizon', 'Horizon to evaluate', value = 1, min = 1, max = 10, step = 1)
     }
   })
   
@@ -220,10 +226,14 @@ server <- function(input, output, session) {
       obs_to_hold_out <- input$holdout#floor((isolate(input$holdout)/100) * total_obs)
       bandPlotEnd <- total_obs - obs_to_hold_out
 
-      
+      # browser()
       highchart()  %>% 
         hc_xAxis(
-          plotLines = list(list(color = '#ffffff', width = 4, value = bandPlotEnd)),
+          plotLines = list(list(color = '#ffffff',
+                                width = 1, 
+                                zIndex = 1.67,
+                                dashStyle =  'Solid',
+                                value = bandPlotEnd)),
           plotBands=list(list(
                    color="#34495e",
                    from= -1,
@@ -624,7 +634,7 @@ server <- function(input, output, session) {
                          y = reactiveVariables$Series_to_Fit)
 
         
-        
+        # browser()
         fit <- try(prophet(dt, 
                            growth = input$growth,
                            n.changepoints = input$n.changepoints,
@@ -662,8 +672,10 @@ server <- function(input, output, session) {
                             arfima = input$arfima),
           distribution.model = input$distribution.model)
         
-        
-        fit <- tryCatch(ugarchfit(spec=spec, data=reactiveVariables$Series_to_Fit),
+        # browser()
+        fit <- tryCatch(ugarchfit(spec=spec, 
+                                  solver = input$solver,
+                                  data=reactiveVariables$Series_to_Fit),
                         error = function(e){NULL},
                         warning = function(w){NULL})
 
@@ -671,8 +683,12 @@ server <- function(input, output, session) {
         if (is.null(fit)) {
           forecasts$GARCH <- NULL
         } else {
-          forecastFit <- ugarchboot(fit,method=c("Partial","Full")[1],n.ahead = length(reactiveVariables$Series_to_Evaluate),n.bootpred=1000,n.bootfit=1000)
-          forecastFit_dt <- data.table('Point Forecast' = as.vector(forecastFit@forc@forecast$sigmaFor))
+      
+          forecastFit <- ugarchboot(fit,
+                                    method=c("Partial","Full")[1],
+                                    n.ahead = length(reactiveVariables$Series_to_Evaluate),
+                                    n.bootpred=2000,n.bootfit=1000)
+          forecastFit_dt <- data.table('Point Forecast' = as.vector(forecastFit@forc@forecast$seriesFor))
           forecasts$GARCH[['Fit']] <- fit
           forecasts$GARCH[['Forecast']] <-forecastFit_dt[, `Point Forecast`]
           forecasts$GARCH[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
@@ -801,9 +817,6 @@ server <- function(input, output, session) {
     
     
 
-   
-   
-   
    gap <- lapply(seq_along(chart_lines), function(x){
    
      shiny::tabPanel(
@@ -818,6 +831,11 @@ server <- function(input, output, session) {
            class = "panel-body",
            highchart()  %>% 
              hc_xAxis(
+               plotLines = list(list(color = '#ffffff',
+                                     width = 1, 
+                                     zIndex = 1.67,
+                                     dashStyle =  'Solid',
+                                     value = (length(chart_lines[[x]]$Fitted)-sum(!is.na(chart_lines[[x]]$Fitted))))),
                labels = list(style = list(color ='#fff')))%>%
              hc_yAxis(title = list(text = names(chart_lines[x])),
                       allowDecimals =F,
@@ -831,11 +849,11 @@ server <- function(input, output, session) {
              hc_add_series(chart_lines[[x]], type = "line", name = "Fitted" ,
                            color = '#F8766D',
                            hcaes(x = N, y = "Fitted"),
-                           tooltip = list(pointFormat = "<b > Value :</b> {point.y:.0f} ")) %>%
+                           tooltip = list(pointFormat = "<b > Forecast :</b> {point.y:.0f} ")) %>%
              hc_add_series(chart_lines[[x]], type = "line", name = "Series",
                            hcaes(x = N, y = "Series"),
                            color = '#619CFF',
-                           tooltip = list(pointFormat = "<b > Value :</b> {point.y:.0f} ")) %>%
+                           tooltip = list(pointFormat = "<b > Actual :</b> {point.y:.0f} ")) %>%
              hc_chart(zoomType = "xy") %>% 
              hc_add_theme(hc_theme_flatdark())
          )
