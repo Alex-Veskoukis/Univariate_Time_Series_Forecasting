@@ -191,11 +191,6 @@ server <- function(input, output, session) {
     if (is.null(inFile))
       return(NULL)
     mySeries <- fread(inFile$datapath)
-    mySeries <- mySeries[,lapply(.SD, as.numeric)]
-    if(nrow(mySeries[complete.cases(mySeries)])== 0){
-      shinyalert(title = "An error occured reading the data. Make sure there are not missing values and the column contains only numbers.", 
-                 type = "error")
-    }
     reactiveVariables$Series <- mySeries
     reactiveVariables$SeriesNames <- names(mySeries)
   })
@@ -234,26 +229,31 @@ server <- function(input, output, session) {
   
   observeEvent(input$submit,{
     myTimeSeries <- reactiveVariables$Series[[input$variable]]
-    if(input$frequency_known == 1 & !is.null(input$frequency)){
-      reactiveVariables$TotalSeries <- ts(myTimeSeries[!is.na(myTimeSeries)], frequency = as.numeric(input$frequency))
+    if(sum(is.na(myTimeSeries)) > 0){
+      shinyalert(title = "An error occured reading the data. Make sure there are not missing values and the column contains only numbers.", 
+                 type = "error")
     } else {
-      reactiveVariables$TotalSeries <- ts(myTimeSeries[!is.na(myTimeSeries)], 
-                                          frequency = findfrequency(myTimeSeries[!is.na(myTimeSeries)]))
-      
+        if(input$frequency_known == 1 & !is.null(input$frequency)){
+          reactiveVariables$TotalSeries <- ts(myTimeSeries[!is.na(myTimeSeries)], frequency = as.numeric(input$frequency))
+        } else {
+          reactiveVariables$TotalSeries <- ts(myTimeSeries[!is.na(myTimeSeries)], 
+                                              frequency = findfrequency(myTimeSeries[!is.na(myTimeSeries)]))
+          
+        }
+          
+        if(input$evaluation_type == 1){
+          if(!is.null(reactiveVariables$TotalSeries)){
+            total_obs <- length(reactiveVariables$TotalSeries)
+            obs_to_hold_out <- input$holdout#floor((input$holdout/100) * total_obs)
+            reactiveVariables$Series_to_Fit <- head(reactiveVariables$TotalSeries, total_obs - obs_to_hold_out)
+            reactiveVariables$Series_to_Evaluate <- tail(reactiveVariables$TotalSeries, obs_to_hold_out)
+            reactiveVariables$Forecasts <- list()
+          }
+        }
+        updateActionButton(session, inputId = 'submit',  icon = icon('check'))
+        reactiveVariables$check <- T
+        reactiveVariables$evaluation_done <- F
     }
-      
-    if(input$evaluation_type == 1){
-      if(!is.null(reactiveVariables$TotalSeries)){
-        total_obs <- length(reactiveVariables$TotalSeries)
-        obs_to_hold_out <- input$holdout#floor((input$holdout/100) * total_obs)
-        reactiveVariables$Series_to_Fit <- head(reactiveVariables$TotalSeries, total_obs - obs_to_hold_out)
-        reactiveVariables$Series_to_Evaluate <- tail(reactiveVariables$TotalSeries, obs_to_hold_out)
-        reactiveVariables$Forecasts <- list()
-      }
-    }
-    updateActionButton(session, inputId = 'submit',  icon = icon('check'))
-    reactiveVariables$check <- T
-    reactiveVariables$evaluation_done <- F
  })
   
 observeEvent(reactiveVariables$check ,{
