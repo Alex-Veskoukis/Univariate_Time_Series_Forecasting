@@ -166,6 +166,70 @@ chunk <- function(x, n, force.number.of.groups = TRUE, len = length(x), groups =
   return(g[g.names.ordered])
 }
 
+crossValidationProphet <- function(dt, horizon, window, initial){
+  freq_int <- findfrequency(dt)
+  valid_frequency <-  c( 1, 7, 12, 4, 365)
+  names(valid_frequency) <-  c('day', 'week', 'month', 'quarter', 'year')
+  check <- data.table(valid_frequency = valid_frequency, freq_int = freq_int, name = names(valid_frequency))
+  check[,diff := abs(valid_frequency - freq_int)]
+  freq <- check[which.min(diff),name]
+  
+  
+  initial <- head(dt,initial)
+  rest <- dt[(floor(nrow(dt)/2)+1):nrow(dt)]
+  buckets <- ceiling((nrow(rest) - horizon)/window)+1
+  buckets
+  window <- 5
+  trainlists <- list()
+  evaluationlists <- list()
+  restlist <- list()
+  trainlists[[1]] <- initial
+  restlist[[1]] <- rest
+  evaluationlists[[1]] <- rest[1:horizon]
+  
+  i <- 2
+  while(T){
+    if(nrow(restlist[[i-1]]) >= window + horizon){
+      dt1 <- rbind(trainlists[[i-1]], restlist[[i-1]][1:window,])
+      dt2 <- restlist[[i-1]][-(1:window)]
+      dt3 <- dt2[1:horizon]
+      trainlists[[i]] <- dt1
+      restlist[[i]] <- dt2
+      evaluationlists[[i]] <- dt3
+    }else{
+      break;
+    } 
+    i <- i + 1
+  }
+  
+  results <- expand.grid(Trainlist = c(1:length(trainlists)), Metric = c('MAE','RMSE','MAPE'), horizon = 1:horizon)
+  setDT(results)
+  
+  for(j in  seq_along(trainlists)){
+    message('Evaluating trainging list ', j)
+    fit <- try(prophet(trainlists[[j]]))
+    future <- make_future_dataframe(fit, periods = horizon,freq = freq)
+    forecast <- predict(fit, future)
+    forecastFit_dt <- as.data.table(forecast)
+    forecastFit_dt <- tail(forecastFit_dt[,.(`Point Forecast` = yhat)], horizon)
+    for(i in 1:horizon){
+      results[Trainlist == j & horizon == i & Metric == 'MAE', 
+              Value := mae(as.vector(evaluationlists[[j]]$y)[i], forecastFit_dt[, `Point Forecast`][i])]
+      
+      results[Trainlist == j & horizon == i & Metric == 'RMSE', 
+              Value := rmse(as.vector(evaluationlists[[j]]$y)[i], forecastFit_dt[, `Point Forecast`][i])]
+      
+      results[Trainlist == j & horizon == i & Metric == 'MAPE', 
+              Value := mape(as.vector(evaluationlists[[j]]$y)[i], forecastFit_dt[, `Point Forecast`][i])]
+    }
+  }
+  final_results <- results[, mean(Value), by = .(Metric, horizon)]
+  final_results
+  final_results <- dcast(final_results, Metric ~ paste0('h=', horizon), value.var = 'V1')
+  return(final_results)
+}
+
+
 style <- "
 .highcharts-plot-band-label{ color:#ffffff;}
 .panel {background-color:#34495e !important;}

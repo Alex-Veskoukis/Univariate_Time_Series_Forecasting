@@ -360,7 +360,7 @@ observeEvent(reactiveVariables$check ,{
     if(input$evaluation_type == 1){
       updateAwesomeCheckboxGroup(session = session,inputId = "Algorithm",choices = c("NAIVE","DRIFT","ARIMA", "ETS", 'TBATS', 'PROPHET'),inline = T)
     } else {
-      updateAwesomeCheckboxGroup(session = session,inputId = "Algorithm",choices = c("NAIVE","DRIFT","ARIMA", "ETS", 'TBATS'),inline = T)
+      updateAwesomeCheckboxGroup(session = session,inputId = "Algorithm",choices = c("NAIVE","DRIFT","ARIMA", "ETS", 'TBATS','PROPHET'),inline = T)
     }
   })
   
@@ -409,9 +409,17 @@ observeEvent(reactiveVariables$check ,{
           forecasts$NAIVE[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
         } else{
           if(input$seasonal_naive == T){
-            forecastFit <- tsCV(y = reactiveVariables$TotalSeries,forecastfunction = snaive, h = input$horizon) 
+            forecastFit <- tsCV(y = reactiveVariables$TotalSeries,
+                                forecastfunction = snaive, 
+                                h = input$horizon,
+                                window = 5,
+                                initial = floor(length(reactiveVariables$TotalSeries)/2)) 
           }else{
-            forecastFit <- tsCV(y = reactiveVariables$TotalSeries,forecastfunction = naive, h = input$horizon) 
+            forecastFit <- tsCV(y = reactiveVariables$TotalSeries,
+                                forecastfunction = naive, 
+                                h = input$horizon,
+                                window = 5,
+                                initial = floor(length(reactiveVariables$TotalSeries)/2)) 
           }
           if(input$horizon > 1){
             forecastFit_dt <- as.data.table(forecastFit)
@@ -437,7 +445,11 @@ observeEvent(reactiveVariables$check ,{
           forecasts$DRIFT[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
           forecasts$DRIFT[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
         } else {
-          forecastFit <- tsCV(y = reactiveVariables$TotalSeries,forecastfunction = rwf, h = input$horizon) 
+          forecastFit <- tsCV(y = reactiveVariables$TotalSeries,
+                              forecastfunction = rwf,
+                              h = input$horizon,
+                              window = 5,
+                              initial = floor(length(reactiveVariables$TotalSeries)/2)) 
           if(input$horizon > 1){
             forecastFit_dt <- as.data.table(forecastFit)
             forecasts$DRIFT[['MAE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})]
@@ -532,7 +544,11 @@ observeEvent(reactiveVariables$check ,{
                              stepwise = T)
              forecast(fit,h)
            }
-           forecastFit <- try(tsCV(y = reactiveVariables$TotalSeries,forecastfunction = forecast_Arima, h = input$horizon) )
+           forecastFit <- try(tsCV(y = reactiveVariables$TotalSeries,
+                                   forecastfunction = forecast_Arima, 
+                                   h = input$horizon,
+                                   window = 5,
+                                   initial = floor(length(reactiveVariables$TotalSeries)/2)) )
            if (is(forecastFit, 'try-error')) {
              forecasts$ARIMA <- NULL
            } else {
@@ -552,7 +568,11 @@ observeEvent(reactiveVariables$check ,{
              forecasts$ARIMA_seasonality_decomposition <- list()
              decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
              seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
-             forecastFit <- try(tsCV(y = seasonaly_adjusted,forecastfunction = forecast_Arima, h =  input$horizon) )
+             forecastFit <- try(tsCV(y = seasonaly_adjusted,
+                                     forecastfunction = forecast_Arima,
+                                     h = input$horizon,
+                                     window = 5,
+                                     initial = floor(length(seasonaly_adjusted)/2)) )
              if (is(forecastFit, 'try-error')) {
                forecasts$ARIMA_seasonality_decomposition <- NULL
              } else {
@@ -619,7 +639,11 @@ observeEvent(reactiveVariables$check ,{
             forecast(fit,h)
           }
           
-          forecastFit <- try(tsCV(y = reactiveVariables$TotalSeries,forecastfunction = forecast_ETS, h = input$horizon) )
+          forecastFit <- try(tsCV(y = reactiveVariables$TotalSeries,
+                                  forecastfunction = forecast_ETS,
+                                  h = input$horizon,
+                                  window = 5,
+                                  initial = floor(length(reactiveVariables$TotalSeries)/2)) )
           if (is(forecastFit, 'try-error')) {
             forecasts$ETS <- NULL
           } else {
@@ -639,7 +663,11 @@ observeEvent(reactiveVariables$check ,{
             forecasts$ETS_seasonality_decomposition <- list()
             decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
             seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
-            forecastFit <- try(tsCV(y = seasonaly_adjusted,forecastfunction = forecast_ETS, h = 1) )
+            forecastFit <- try(tsCV(y = seasonaly_adjusted,
+                                    forecastfunction = forecast_ETS,
+                                    h = input$horizon,
+                                    window = 5,
+                                    initial = floor(length(seasonaly_adjusted)/2)) )
             if (is(forecastFit, 'try-error')) {
               forecasts$ETS_seasonality_decomposition <- NULL
             } else {
@@ -673,7 +701,11 @@ observeEvent(reactiveVariables$check ,{
             forecast(fit,h)
           }
           
-          forecastFit <- try(tsCV(y = reactiveVariables$TotalSeries,forecastfunction = forecast_TBATS, h = input$horizon) )
+          forecastFit <- try(tsCV(y = reactiveVariables$TotalSeries,
+                                  forecastfunction = forecast_TBATS, 
+                                  h = input$horizon,
+                                  window = 5,
+                                  initial = floor(length(reactiveVariables$TotalSeries)/2)))
           if (is(forecastFit, 'try-error')) {
             forecasts$TBATS <- NULL
           } else {
@@ -694,8 +726,10 @@ observeEvent(reactiveVariables$check ,{
       }
       
       
-      if("PROPHET" %in% input$Algorithm & input$evaluation_type == 1){
+      if("PROPHET" %in% input$Algorithm){
+        if(input$evaluation_type == 1) {
         forecasts$PROPHET <- list()
+        
         if(input$frequency_known == 1 & !is.null(input$frequency)){
           freq_int <- as.numeric(input$frequency)
         } else {
@@ -739,6 +773,56 @@ observeEvent(reactiveVariables$check ,{
           forecasts$PROPHET[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
           forecasts$PROPHET[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
           forecasts$PROPHET[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
+        }
+        } else {
+          forecasts$PROPHET <- list()
+          # browser()
+          if(input$frequency_known == 1 & !is.null(input$frequency)){
+            freq_int <- as.numeric(input$frequency)
+          } else {
+            freq_int <- findfrequency(reactiveVariables$TotalSeries)
+          }
+          
+          valid_frequency <-  c( 1, 7, 12, 4, 365)
+          names(valid_frequency) <-  c('day', 'week', 'month', 'quarter', 'year')
+          check <- data.table(valid_frequency = valid_frequency, freq_int = freq_int, name = names(valid_frequency))
+          check[,diff := abs(valid_frequency - freq_int)]
+          freq <- check[which.min(diff),name]
+          
+          
+          
+          dt <- data.table(ds=seq.Date(from = Sys.Date(),
+                                       length.out = length(reactiveVariables$TotalSeries),
+                                       by = freq),
+                           y = reactiveVariables$TotalSeries)
+          
+         
+          forecastFit <- try(crossValidationProphet(dt, 
+                                        horizon = input$horizon,
+                                        window = 5,
+                                        initial = floor(length(reactiveVariables$TotalSeries)/2)))
+          
+          if (is(forecastFit, 'try-error')) {
+            forecasts$PROPHET <- NULL
+          } else {
+
+            if(input$horizon > 1){
+              forecasts$PROPHET[['MAE']]  <- forecastFit[Metric == 'MAE', !c('Metric')] 
+              forecasts$PROPHET[['RMSE']]  <- forecastFit[Metric == 'RMSE', !c('Metric')] 
+              forecasts$PROPHET[['MAPE']]  <- forecastFit[Metric == 'MAPE', !c('Metric')] 
+            } else {
+              forecasts$PROPHET[['MAE']]  <- forecastFit[Metric == 'MAE', !c('Metric')][[1]] 
+              forecasts$PROPHET[['RMSE']]  <- forecastFit[Metric == 'RMSE', !c('Metric')][[1]] 
+              forecasts$PROPHET[['MAPE']]  <- forecastFit[Metric == 'MAPE', !c('Metric')][[1]]  
+            }
+            
+          }
+          
+          
+          
+          
+          
+          
         }
       }
       
@@ -853,7 +937,7 @@ observeEvent(reactiveVariables$check ,{
       req(reactiveVariables$evaluation_done)
       final_results <- reactiveVariables$Forecasts
       req(length(final_results) >= 1)
-      # names(final_results)
+   # browser()
       result_list <- list()
       for(i in  1:length(final_results)){
         result_list[[i]] <- data.table('Algorithm' = names(final_results[i]),
@@ -877,8 +961,9 @@ observeEvent(reactiveVariables$check ,{
                                  "function(settings, json) {",
                                  "$(this.api().table().header()).css({'background-color': '#34495e', 'color': '#fff'});",
                                  "}"
-                               )))%>% 
-        formatStyle(names(df), backgroundColor = "#34495e", color ='#bfa423')
+                               )))
+      # %>% 
+      #   formatStyle(names(result_dt), backgroundColor = "#34495e", color ='#bfa423')
   })
   
   output$dt_row_selector <- renderUI({
@@ -904,11 +989,9 @@ observeEvent(reactiveVariables$check ,{
     final_results <- reactiveVariables$Forecasts
     req(length(final_results) >= 1)
     tagList(
-      column(5,actionButton(inputId = 'forecast_ahead',
-                            label = "Forecast ahead with the selected row from the evaluation's results table",
-                            style = "padding: 28px 16px;")),
-      # column(2,h5('Forecast horizon')),
-      column(1,numericInput('forecast_horizon','Forecast horizon',value =1, min=1,max =100,width = '100px')))
+      actionButton(inputId = 'forecast_ahead',
+                            label = "Forecast ahead with the selected row from the evaluation's results table"),
+      numericInput('forecast_horizon','Forecast horizon',value =1, min=1,max =100,width = '100px'))
   })
   
   
@@ -1258,11 +1341,12 @@ observeEvent(reactiveVariables$check ,{
   
   
   output$dynamic_tabs2 <- shiny::renderUI({
+    
     req(input$forecast_ahead)
-    req(input$evaluation_type == 1)
     req(reactiveVariables$evaluation_done)
     final_results <- reactiveVariables$Forecasts_ahead
     req(length(final_results) >= 1)
+    
     Tabs <- names(reactiveVariables$Forecasts_ahead)
     
     chart_lines <- sapply(Tabs, function(x){
