@@ -1257,7 +1257,7 @@ observeEvent(reactiveVariables$check ,{
           }
       }
       
-      if("PROPHET" %in% Algorithms & input$evaluation_type == 1){
+      if("PROPHET" %in% Algorithms){
         forecasts_ahead$PROPHET <- list()
         if(input$frequency_known == 1 & !is.null(input$frequency)){
           freq_int <- as.numeric(input$frequency)
