@@ -82,7 +82,7 @@ hidden(div(align = 'left',
                              checkboxInput('allowdrift','Allow drift',value = T), 
                              checkboxInput('allowmean','Allow mean',value = T),
                              checkboxInput('seasonal','Seasonality',value = T),
-                             checkboxInput('arima_decomposition','Decomposition',value = F)
+                             checkboxInput('arima_seasonality_decomposition','Seasonality Decomposition',value = F)
                              # ,
                              # conditionalPanel(condition = 'input.frequency > 2 & output.obs >= 2*input.frequency',
                              #                  checkboxInput('arima_decomposition','Decomposition',value = F))
@@ -106,7 +106,7 @@ hidden(div(align = 'left',
                                          choices = c('None'="N",'Additive'="A", 'multiplicative'="M", 'Automatically selected'= "Z"),
                                          selected = 'Z'),
                              checkboxInput('allow.multiplicative.trend', 'Allow multiplicative trend',value = F),
-                             checkboxInput('ets_decomposition','Decomposition',value = F)
+                             checkboxInput('ets_seasonality_decomposition','Seasonality Decomposition',value = F)
                              # ,
                              # conditionalPanel(condition = 'input.frequency > 2 & output.obs >= 2*input.frequency',
                              # checkboxInput('ets_decomposition','Decomposition',value = F))
@@ -128,40 +128,42 @@ hidden(div(align = 'left',
                              numericInput(inputId = 'n.changepoints', label = 'Number of changepoints', value = 25, min = 0, max = 100),
                              numericInput(inputId = 'changepoint.range', label = 'Changepoint range', value = 0.8, min = 0.1, max = 1)),
                            value=4),
-                  tabPanel("GARCH", icon = icon("line-chart"), h4("GARCH"), 
-                           br(), 
-                           inputPanel(
-                             column(12, h4('Variance model'),
-                                    selectInput(inputId = 'model', label = 'Model', choices = c( "sGARCH", "fGARCH", "eGARCH", "gjrGARCH", "apARCH" , "iGARCH" , "csGARCH"),selected = "sGARCH"),
-                                    numericInput('grach_variance_p','AR order',value = 1, min=0 , max = 10,step=1),
-                                    numericInput('grach_variance_q','MA order',value = 1,min=0 , max = 10,step=1),
-                                    selectInput(inputId = 'submodel', label = 'Submodel', choices = c( "GARCH", "TGARCH", "AVGARCH", "NGARCH", "NAGARCH", "APARCH","GJRGARCH" , "ALLGARCH"),selected = "GARCH")
-                                    ),
-                             column(12,h4('Mean model'),
-                                    numericInput('grach_mean_p','AR order',value = 1,min=0 , max = 10,step=1),
-                                    numericInput('grach_mean_q','MA order',value = 1, min=0 ,max = 10,step=1),
-                                    checkboxInput('include.mean', 'Include mean', value = ),
-                                    checkboxInput('archm', 'include ARCH volatility in the mean regression', value = ),
-                                    selectInput('archpow', 'Use st.deviation or variance?', choices = c('std'=1,'Variance'=2)),
-                                    checkboxInput('arfima', 'Use fractional differencing in the ARMA regression'),
-                                    ),
-                             column(12,selectInput(inputId = 'distribution.model', 
-                                                  label = h4('Distribution model'), 
-                                                  choices = c('student-t' ="std" ,
-                                                              'skew-student'="sstd" ,
-                                                              'generalized error distribution'="ged",
-                                                  'skew-generalized error distribution'="sged",
-                                                  'the normal inverse gaussian distribution'="nig" ,
-                                                  'Generalized Hyperbolic'= "ghyp" , 
-                                                  "Johnson's SU" = "jsu"),
-                                                  selected = "std")),
-                             column(12,
-                             selectInput(inputId = 'solver', label = h4('Select solver'),
-                                         choices = c( "nlminb", "solnp", "lbfgs", "gosolnp", "nloptr" , "hybrid"),
-                                         selected = "solnp"))),
-                           
-                           
-                           value=4),
+                  
+                  
+                  # tabPanel("GARCH", icon = icon("line-chart"), h4("GARCH"), 
+                  #          br(), 
+                  #          inputPanel(
+                  #            column(12, h4('Variance model'),
+                  #                   selectInput(inputId = 'model', label = 'Model', choices = c( "sGARCH", "fGARCH", "eGARCH", "gjrGARCH", "apARCH" , "iGARCH" , "csGARCH"),selected = "sGARCH"),
+                  #                   numericInput('grach_variance_p','AR order',value = 1, min=0 , max = 10,step=1),
+                  #                   numericInput('grach_variance_q','MA order',value = 1,min=0 , max = 10,step=1),
+                  #                   selectInput(inputId = 'submodel', label = 'Submodel', choices = c( "GARCH", "TGARCH", "AVGARCH", "NGARCH", "NAGARCH", "APARCH","GJRGARCH" , "ALLGARCH"),selected = "GARCH")
+                  #                   ),
+                  #            column(12,h4('Mean model'),
+                  #                   numericInput('grach_mean_p','AR order',value = 1,min=0 , max = 10,step=1),
+                  #                   numericInput('grach_mean_q','MA order',value = 1, min=0 ,max = 10,step=1),
+                  #                   checkboxInput('include.mean', 'Include mean', value = ),
+                  #                   checkboxInput('archm', 'include ARCH volatility in the mean regression', value = ),
+                  #                   selectInput('archpow', 'Use st.deviation or variance?', choices = c('std'=1,'Variance'=2)),
+                  #                   checkboxInput('arfima', 'Use fractional differencing in the ARMA regression'),
+                  #                   ),
+                  #            column(12,selectInput(inputId = 'distribution.model', 
+                  #                                 label = h4('Distribution model'), 
+                  #                                 choices = c('student-t' ="std" ,
+                  #                                             'skew-student'="sstd" ,
+                  #                                             'generalized error distribution'="ged",
+                  #                                 'skew-generalized error distribution'="sged",
+                  #                                 'the normal inverse gaussian distribution'="nig" ,
+                  #                                 'Generalized Hyperbolic'= "ghyp" , 
+                  #                                 "Johnson's SU" = "jsu"),
+                  #                                 selected = "std")),
+                  #            column(12,
+                  #            selectInput(inputId = 'solver', label = h4('Select solver'),
+                  #                        choices = c( "nlminb", "solnp", "lbfgs", "gosolnp", "nloptr" , "hybrid"),
+                  #                        selected = "solnp"))),
+                  #          
+                  #          
+                  #          value=4),
                   id = "timeSeriesTabs"),
     br(),
     br(),
@@ -180,6 +182,20 @@ br(),
 uiOutput('forecast_widget_container'),
 uiOutput('forecast_tabs_container')
 )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #### server ####
 server <- function(input, output, session) {
   reactiveVariables <- reactiveValues()
@@ -342,7 +358,7 @@ observeEvent(reactiveVariables$check ,{
   
   observeEvent(input$evaluation_type,{
     if(input$evaluation_type == 1){
-      updateAwesomeCheckboxGroup(session = session,inputId = "Algorithm",choices = c("NAIVE","DRIFT","ARIMA", "ETS", 'TBATS', 'PROPHET', 'GARCH'),inline = T)
+      updateAwesomeCheckboxGroup(session = session,inputId = "Algorithm",choices = c("NAIVE","DRIFT","ARIMA", "ETS", 'TBATS', 'PROPHET'),inline = T)
     } else {
       updateAwesomeCheckboxGroup(session = session,inputId = "Algorithm",choices = c("NAIVE","DRIFT","ARIMA", "ETS", 'TBATS'),inline = T)
     }
@@ -357,7 +373,13 @@ observeEvent(reactiveVariables$check ,{
   # })
   # outputOptions(output, "obs", suspendWhenHidden = FALSE)
   
-  observeEvent(c(input$i_file, input$variable, input$holdout, input$horizon, input$evaluation_type),{
+  observeEvent(c(input$i_file,
+                 input$variable,
+                 input$holdout,
+                 input$horizon,
+                 input$evaluation_type,
+                 input$frequency_known,
+                 input$frequency),{
     updateActionButton(session, inputId = 'submit',  icon = icon(NULL))
     reactiveVariables$check <- F
   })
@@ -458,8 +480,8 @@ observeEvent(reactiveVariables$check ,{
                 forecasts$ARIMA[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
               }
     
-            if(input$arima_decomposition == T & (frequency(reactiveVariables$Series_to_Fit) >= 2 & length(reactiveVariables$Series_to_Fit)>2*frequency(reactiveVariables$Series_to_Fit))){
-              forecasts$ARIMA_decomposition <- list()
+            if(input$arima_seasonality_decomposition == T & (frequency(reactiveVariables$Series_to_Fit) >= 2 & length(reactiveVariables$Series_to_Fit)>2*frequency(reactiveVariables$Series_to_Fit))){
+              forecasts$ARIMA_seasonality_decomposition <- list()
               decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
               seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
               seasonaly_adjusted_to_Fit <- head(seasonaly_adjusted, length(reactiveVariables$Series_to_Fit))
@@ -478,17 +500,17 @@ observeEvent(reactiveVariables$check ,{
                                     seasonal = input$seasonal,
                                     stepwise = T))
               if (is(fit, 'try-error')) {
-                forecasts$ARIMA_decomposition <- NULL
+                forecasts$ARIMA_seasonality_decomposition <- NULL
               } else {
                 forecastFit <- forecast(fit, length(reactiveVariables$Series_to_Evaluate))
                 forecastFit <- forecastFit$mean + seasonal_to_add
                 forecastFit_dt <- as.data.table(forecastFit)
                 names(forecastFit_dt) <- 'Point Forecast'
-                forecasts$ARIMA_decomposition[['Fit']] <- fit
-                forecasts$ARIMA_decomposition[['Forecast']] <- forecastFit_dt[, `Point Forecast`]
-                forecasts$ARIMA_decomposition[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-                forecasts$ARIMA_decomposition[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-                forecasts$ARIMA_decomposition[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
+                forecasts$ARIMA_seasonality_decomposition[['Fit']] <- fit
+                forecasts$ARIMA_seasonality_decomposition[['Forecast']] <- forecastFit_dt[, `Point Forecast`]
+                forecasts$ARIMA_seasonality_decomposition[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
+                forecasts$ARIMA_seasonality_decomposition[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
+                forecasts$ARIMA_seasonality_decomposition[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
               }
             }
          }else{
@@ -526,23 +548,23 @@ observeEvent(reactiveVariables$check ,{
              }
            }
            
-           if(input$arima_decomposition == T & (frequency(reactiveVariables$TotalSeries) >= 2 & length(reactiveVariables$TotalSeries)>2*frequency(reactiveVariables$TotalSeries))){
-             forecasts$ARIMA_decomposition <- list()
+           if(input$arima_seasonality_decomposition == T & (frequency(reactiveVariables$TotalSeries) >= 2 & length(reactiveVariables$TotalSeries)>2*frequency(reactiveVariables$TotalSeries))){
+             forecasts$ARIMA_seasonality_decomposition <- list()
              decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
              seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
              forecastFit <- try(tsCV(y = seasonaly_adjusted,forecastfunction = forecast_Arima, h =  input$horizon) )
              if (is(forecastFit, 'try-error')) {
-               forecasts$ARIMA_decomposition <- NULL
+               forecasts$ARIMA_seasonality_decomposition <- NULL
              } else {
                if(input$horizon > 1){
                  forecastFit_dt <- as.data.table(forecastFit)
-                 forecasts$ARIMA_decomposition[['MAE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})]
-                 forecasts$ARIMA_decomposition[['RMSE']]  <- forecastFit_dt[,lapply(.SD, function(x){ sqrt(mean(x^2, na.rm=TRUE))})]
-                 forecasts$ARIMA_decomposition[['MAPE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x/reactiveVariables$TotalSeries), na.rm = T)})]
+                 forecasts$ARIMA_seasonality_decomposition[['MAE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})]
+                 forecasts$ARIMA_seasonality_decomposition[['RMSE']]  <- forecastFit_dt[,lapply(.SD, function(x){ sqrt(mean(x^2, na.rm=TRUE))})]
+                 forecasts$ARIMA_seasonality_decomposition[['MAPE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x/reactiveVariables$TotalSeries), na.rm = T)})]
                } else {
-                 forecasts$ARIMA_decomposition[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
-                 forecasts$ARIMA_decomposition[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
-                 forecasts$ARIMA_decomposition[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
+                 forecasts$ARIMA_seasonality_decomposition[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
+                 forecasts$ARIMA_seasonality_decomposition[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
+                 forecasts$ARIMA_seasonality_decomposition[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
                }
              }
            }
@@ -567,25 +589,25 @@ observeEvent(reactiveVariables$check ,{
             forecasts$ETS[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
           }
           
-          if(input$arima_decomposition == T  & (frequency(reactiveVariables$Series_to_Fit) >= 2 & length(reactiveVariables$Series_to_Fit)>2*frequency(reactiveVariables$Series_to_Fit))){
-            forecasts$ETS_decomposition <- list()
+          if(input$arima_seasonality_decomposition == T  & (frequency(reactiveVariables$Series_to_Fit) >= 2 & length(reactiveVariables$Series_to_Fit)>2*frequency(reactiveVariables$Series_to_Fit))){
+            forecasts$ETS_seasonality_decomposition <- list()
             decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
             seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
             seasonaly_adjusted_to_Fit <- head(seasonaly_adjusted, length(reactiveVariables$Series_to_Fit))
             seasonal_to_add <- tail(decomposed_ts$time.series[,'seasonal'], length(reactiveVariables$Series_to_Evaluate))
             fit <- try(ets(seasonaly_adjusted_to_Fit,model=model, allow.multiplicative.trend = input$allow.multiplicative.trend))
             if (is(fit, 'try-error')) {
-              forecasts$ETS_decomposition <- NULL
+              forecasts$ETS_seasonality_decomposition <- NULL
             } else {
               forecastFit <- forecast(fit, length(reactiveVariables$Series_to_Evaluate))
               forecastFit <- forecastFit$mean + seasonal_to_add
               forecastFit_dt <- as.data.table(forecastFit)
               names(forecastFit_dt) <- 'Point Forecast'
-              forecasts$ETS_decomposition[['Fit']] <- fit
-              forecasts$ETS_decomposition[['Forecast']] <- forecastFit_dt[, `Point Forecast`]
-              forecasts$ETS_decomposition[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-              forecasts$ETS_decomposition[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-              forecasts$ETS_decomposition[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
+              forecasts$ETS_seasonality_decomposition[['Fit']] <- fit
+              forecasts$ETS_seasonality_decomposition[['Forecast']] <- forecastFit_dt[, `Point Forecast`]
+              forecasts$ETS_seasonality_decomposition[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
+              forecasts$ETS_seasonality_decomposition[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
+              forecasts$ETS_seasonality_decomposition[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
             }
           }
         } else {
@@ -613,17 +635,17 @@ observeEvent(reactiveVariables$check ,{
             }
           }
           
-          if(input$ets_decomposition == T & (frequency(reactiveVariables$TotalSeries) >= 2 & length(reactiveVariables$TotalSeries)>2*frequency(reactiveVariables$TotalSeries))){
-            forecasts$ETS_decomposition <- list()
+          if(input$ets_seasonality_decomposition == T & (frequency(reactiveVariables$TotalSeries) >= 2 & length(reactiveVariables$TotalSeries)>2*frequency(reactiveVariables$TotalSeries))){
+            forecasts$ETS_seasonality_decomposition <- list()
             decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
             seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
             forecastFit <- try(tsCV(y = seasonaly_adjusted,forecastfunction = forecast_ETS, h = 1) )
             if (is(forecastFit, 'try-error')) {
-              forecasts$ETS_decomposition <- NULL
+              forecasts$ETS_seasonality_decomposition <- NULL
             } else {
-              forecasts$ETS_decomposition[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
-              forecasts$ETS_decomposition[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
-              forecasts$ETS_decomposition[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
+              forecasts$ETS_seasonality_decomposition[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
+              forecasts$ETS_seasonality_decomposition[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
+              forecasts$ETS_seasonality_decomposition[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
             }
           } 
         }
@@ -759,8 +781,8 @@ observeEvent(reactiveVariables$check ,{
         }
         
         
-        # if(input$GARCH_decomposition == T){
-        #   forecasts$GARCH_decomposition <- list()
+        # if(input$GARCH_seasonality_decomposition == T){
+        #   forecasts$GARCH_seasonality_decomposition <- list()
         #   decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic")
         #   seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
         #   seasonaly_adjusted_to_Fit <- head(seasonaly_adjusted, length(reactiveVariables$Series_to_Fit))
@@ -779,17 +801,17 @@ observeEvent(reactiveVariables$check ,{
         #                         seasonal = input$seasonal,
         #                         stepwise = T))
         #   if (is(fit, 'try-error')) {
-        #     forecasts$GARCH_decomposition <- NULL
+        #     forecasts$GARCH_seasonality_decomposition <- NULL
         #   } else {
         #     forecastFit <- forecast(fit, length(reactiveVariables$Series_to_Evaluate))
         #     forecastFit <- forecastFit$mean + seasonal_to_add
         #     forecastFit_dt <- as.data.table(forecastFit)
         #     names(forecastFit_dt) <- 'Point Forecast'
-        #     forecasts$GARCH_decomposition[['Forecast']] <- forecastFit_dt[, `Point Forecast`]
+        #     forecasts$GARCH_seasonality_decomposition[['Forecast']] <- forecastFit_dt[, `Point Forecast`]
         #     # forecasts$GARCH[['AIC']]  <- fit$aic
-        #     forecasts$GARCH_decomposition[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-        #     forecasts$GARCH_decomposition[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-        #     forecasts$GARCH_decomposition[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
+        #     forecasts$GARCH_seasonality_decomposition[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
+        #     forecasts$GARCH_seasonality_decomposition[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
+        #     forecasts$GARCH_seasonality_decomposition[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
         #   }
         # }
       }
@@ -882,8 +904,11 @@ observeEvent(reactiveVariables$check ,{
     final_results <- reactiveVariables$Forecasts
     req(length(final_results) >= 1)
     tagList(
-    actionButton('forecast_ahead', "Forecast ahead with the selected row from the evaluation's results table"),
-    numericInput('forecast_horizon','Forecast horizon',value =1, min=1,max =100))
+      column(5,actionButton(inputId = 'forecast_ahead',
+                            label = "Forecast ahead with the selected row from the evaluation's results table",
+                            style = "padding: 28px 16px;")),
+      # column(2,h5('Forecast horizon')),
+      column(1,numericInput('forecast_horizon','Forecast horizon',value =1, min=1,max =100,width = '100px')))
   })
   
   
@@ -1070,8 +1095,8 @@ observeEvent(reactiveVariables$check ,{
             forecasts_ahead$ARIMA[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
           }
           
-          if(input$arima_decomposition == T & (frequency(reactiveVariables$TotalSeries) >= 2 & length(reactiveVariables$TotalSeries)>2*frequency(reactiveVariables$TotalSeries))){
-            forecasts_ahead$ARIMA_decomposition <- list()
+          if(input$arima_seasonality_decomposition == T & (frequency(reactiveVariables$TotalSeries) >= 2 & length(reactiveVariables$TotalSeries)>2*frequency(reactiveVariables$TotalSeries))){
+            forecasts_ahead$ARIMA_seasonality_decomposition <- list()
             decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
             seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
             seasonaly_adjusted_to_Fit <- head(seasonaly_adjusted, length(reactiveVariables$TotalSeries))
@@ -1090,7 +1115,7 @@ observeEvent(reactiveVariables$check ,{
                                   seasonal = input$seasonal,
                                   stepwise = T))
             if (is(fit, 'try-error')) {
-              forecasts_ahead$ARIMA_decomposition <- NULL
+              forecasts_ahead$ARIMA_seasonality_decomposition <- NULL
             } else {
               forecastFit <- forecast(fit, input$forecast_horizon)
               forecastFit_dt <- as.data.table(forecastFit)
@@ -1098,7 +1123,7 @@ observeEvent(reactiveVariables$check ,{
               forecastFit_dt[,c('Point Forecast', 'Lo 95' , 'Hi 95') := .(
                 `Point Forecast` + seasonal_to_add, `Lo 95` + seasonal_to_add, `Hi 95` + seasonal_to_add
               )]
-             forecasts_ahead$ARIMA_decomposition[['Forecast']] <- forecastFit_dt
+             forecasts_ahead$ARIMA_seasonality_decomposition[['Forecast']] <- forecastFit_dt
             }
           }
       }
@@ -1115,15 +1140,15 @@ observeEvent(reactiveVariables$check ,{
             forecasts_ahead$ETS[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
           }
           
-          if(input$arima_decomposition == T  & (frequency(reactiveVariables$TotalSeries) >= 2 & length(reactiveVariables$TotalSeries)>2*frequency(reactiveVariables$TotalSeries))){
-            forecasts_ahead$ETS_decomposition <- list()
+          if(input$arima_seasonality_decomposition == T  & (frequency(reactiveVariables$TotalSeries) >= 2 & length(reactiveVariables$TotalSeries)>2*frequency(reactiveVariables$TotalSeries))){
+            forecasts_ahead$ETS_seasonality_decomposition <- list()
             decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
             seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
             seasonaly_adjusted_to_Fit <- head(seasonaly_adjusted, length(reactiveVariables$TotalSeries))
             seasonal_to_add <- tail(decomposed_ts$time.series[,'seasonal'], input$forecast_horizon)
             fit <- try(ets(seasonaly_adjusted_to_Fit,model=model, allow.multiplicative.trend = input$allow.multiplicative.trend))
             if (is(fit, 'try-error')) {
-              forecasts_ahead$ETS_decomposition <- NULL
+              forecasts_ahead$ETS_seasonality_decomposition <- NULL
             } else {
               forecastFit <- forecast(fit, input$forecast_horizon)
               forecastFit_dt <- as.data.table(forecastFit)
@@ -1131,7 +1156,7 @@ observeEvent(reactiveVariables$check ,{
               forecastFit_dt[,c('Point Forecast', 'Lo 95' , 'Hi 95') := .(
                 `Point Forecast` + seasonal_to_add, `Lo 95` + seasonal_to_add, `Hi 95` + seasonal_to_add
               )]
-              forecasts_ahead$ETS_decomposition[['Forecast']] <- forecastFit_dt
+              forecasts_ahead$ETS_seasonality_decomposition[['Forecast']] <- forecastFit_dt
             }
           }
 
@@ -1244,6 +1269,7 @@ observeEvent(reactiveVariables$check ,{
       series <- as.vector(reactiveVariables$TotalSeries)
       forecasts <- reactiveVariables$Forecasts_ahead[[x]]$Forecast
       names(forecasts) <- c("Fitted","lowerLimit","upperLimit")
+      forecasts <- forecasts[,lapply(.SD, as.numeric)]
       dt <- data.table(Series = c(series))
       dt[,":="(Fitted = NA, lowerLimit = NA, upperLimit = NA)]
       dt <- rbindlist(list(dt,forecasts),use.names = T,fill = T)
