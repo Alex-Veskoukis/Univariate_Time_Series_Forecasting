@@ -244,7 +244,7 @@ server <- function(input, output, session) {
   })
   
   observeEvent(input$submit,{
-    myTimeSeries <- reactiveVariables$Series[[input$variable]]
+    myTimeSeries <- as.numeric(reactiveVariables$Series[[input$variable]])
     if(sum(is.na(myTimeSeries)) > 0){
       shinyalert(title = "An error occured reading the data. Make sure there are not missing values and the column contains only numbers.", 
                  type = "error")
@@ -272,14 +272,14 @@ server <- function(input, output, session) {
     }
  })
   
-observeEvent(reactiveVariables$check ,{
+  observeEvent(reactiveVariables$check ,{
   if(reactiveVariables$check == T){
     shinyjs::show('seriesdiv')
   } else {
     shinyjs::hide('seriesdiv')
   }
 })
-  
+   
   output$series <- renderHighchart({
     req(reactiveVariables$check == T)
     series <- as.vector(reactiveVariables$TotalSeries)
@@ -290,7 +290,7 @@ observeEvent(reactiveVariables$check ,{
 
       # browser()
       highchart()  %>% 
-        hc_xAxis(
+        hc_xAxis(title = list(text = "Observation number"),
           plotLines = list(list(color = '#ffffff',
                                 width = 1, 
                                 zIndex = 1.67,
@@ -331,7 +331,8 @@ observeEvent(reactiveVariables$check ,{
         hc_add_theme(hc_theme_flatdark())
     } else {
       highchart()  %>% 
-        hc_xAxis(labels = list(style = list(color ='#ffffff')))%>%
+        hc_xAxis(title = list(text = "Observation number"),
+          labels = list(style = list(color ='#ffffff')))%>%
         hc_yAxis(title = list(text =  input$variable),
                  allowDecimals =F,
                  labels = list(style = list(color ='#ffffff'))) %>%
@@ -671,9 +672,20 @@ observeEvent(reactiveVariables$check ,{
             if (is(forecastFit, 'try-error')) {
               forecasts$ETS_seasonality_decomposition <- NULL
             } else {
-              forecasts$ETS_seasonality_decomposition[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
-              forecasts$ETS_seasonality_decomposition[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
-              forecasts$ETS_seasonality_decomposition[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
+              if(input$horizon > 1){
+                forecastFit_dt <- as.data.table(forecastFit)
+                forecasts$ETS_seasonality_decomposition[['MAE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})]
+                forecasts$ETS_seasonality_decomposition[['RMSE']]  <- forecastFit_dt[,lapply(.SD, function(x){ sqrt(mean(x^2, na.rm=TRUE))})]
+                forecasts$ETS_seasonality_decomposition[['MAPE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x/reactiveVariables$TotalSeries), na.rm = T)})]
+              } else {
+                forecasts$ETS_seasonality_decomposition[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
+                forecasts$ETS_seasonality_decomposition[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
+                forecasts$ETS_seasonality_decomposition[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
+              }
+              
+              # forecasts$ETS_seasonality_decomposition[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
+              # forecasts$ETS_seasonality_decomposition[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
+              # forecasts$ETS_seasonality_decomposition[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
             }
           } 
         }
@@ -738,12 +750,12 @@ observeEvent(reactiveVariables$check ,{
        
         valid_frequency <-  c( 1, 7, 12, 4, 365)
         names(valid_frequency) <-  c('day', 'week', 'month', 'quarter', 'year')
-        check <- data.table(valid_frequency = valid_frequency, freq_int = freq_int, name = names(valid_frequency))
+        check <- data.table(valid_frequency = valid_frequency, 
+                            freq_int = freq_int, 
+                            name = names(valid_frequency))
         check[,diff := abs(valid_frequency - freq_int)]
         freq <- check[which.min(diff),name]
-        
 
-        
         dt <- data.table(ds=seq.Date(from = Sys.Date(),
                                      length.out = length(reactiveVariables$Series_to_Fit),
                                      by = freq),
@@ -935,7 +947,7 @@ observeEvent(reactiveVariables$check ,{
 
   output$results <- renderDataTable({
       req(reactiveVariables$evaluation_done)
-      final_results <- reactiveVariables$Forecasts
+      final_results <- copy(reactiveVariables$Forecasts)
       req(length(final_results) >= 1)
    # browser()
       result_list <- list()
@@ -956,6 +968,7 @@ observeEvent(reactiveVariables$check ,{
                 options = list(pageLength = 10,
                                width="100%", 
                                scrollY = F,
+                               scrollX = T,
                                dom = 't',
                                initComplete = JS(
                                  "function(settings, json) {",
@@ -1044,7 +1057,7 @@ observeEvent(reactiveVariables$check ,{
          div(align = 'left',
            class = "panel-body",
            highchart()  %>% 
-             hc_xAxis(
+             hc_xAxis(title = list(text = "Observation number"),
                plotLines = list(list(color = '#ffffff',
                                      width = 1, 
                                      zIndex = 1.67,
@@ -1355,13 +1368,12 @@ observeEvent(reactiveVariables$check ,{
       names(forecasts) <- c("Fitted","lowerLimit","upperLimit")
       forecasts <- forecasts[,lapply(.SD, as.numeric)]
       dt <- data.table(Series = c(series))
-      dt[,":="(Fitted = NA, lowerLimit = NA, upperLimit = NA)]
+      dt[,":="(Fitted = numeric(0), lowerLimit = numeric(0), upperLimit = numeric(0))]
+      # dt[nrow(dt), Fitted := Series]
       dt <- rbindlist(list(dt,forecasts),use.names = T,fill = T)
       dt[,N := 1:.N]
     }, USE.NAMES = T, simplify = F)
     
-    
-    # browser()
     
     gap <- lapply(seq_along(chart_lines), function(x){
       
@@ -1376,7 +1388,7 @@ observeEvent(reactiveVariables$check ,{
           div(
             class = "panel-body",
             highchart()  %>% 
-              hc_xAxis(
+              hc_xAxis(title = list(text = "Observation number"),
                 labels = list(style = list(color ='#fff')))%>%
               hc_yAxis(title = list(text = names(chart_lines[x])),
                        allowDecimals =F,
