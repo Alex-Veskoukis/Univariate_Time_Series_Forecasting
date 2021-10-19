@@ -9,6 +9,7 @@ library(forecast)
 library(Metrics)
 library(DT)
 library(rugarch)
+library(forecTheta)
 library(highcharter)
 library(shinythemes)
 library(shinyalert)
@@ -51,7 +52,7 @@ hidden(div(align = 'left',
     hr(),
     awesomeCheckboxGroup(inputId = "Algorithm", 
                  label = h2("Select Algorithm to Evaluate"), 
-                 choices = c("NAIVE","DRIFT","ARIMA", "ETS", 'TBATS', 'PROPHET'),
+                 choices = c("NAIVE","DRIFT","ARIMA", "ETS", 'TBATS', 'PROPHET', 'THETA'),
                  selected = "NAIVE", 
                  inline = TRUE),
 # conditionalPanel(condition = 'input.Algorithm.length > 1',
@@ -117,7 +118,7 @@ hidden(div(align = 'left',
                            inputPanel(
                              checkboxInput('use.arma.errors','Use ARMA errors',value = T)),
                            value=3),
-                  tabPanel("PROPHET", icon = icon("line-chart"), h4("TBATS"), 
+                  tabPanel("PROPHET", icon = icon("line-chart"), h4("PROPHET"), 
                            br(), 
                            inputPanel(
                              selectInput(label = 'Growth', inputId = 'growth', choices = c( 'linear', 'flat'),selected = "linear"),
@@ -129,7 +130,23 @@ hidden(div(align = 'left',
                              numericInput(inputId = 'changepoint.range', label = 'Changepoint range', value = 0.8, min = 0.1, max = 1)),
                            value=4),
                   
-                  
+                  tabPanel("THETA", icon = icon("line-chart"), h4("THETA"), 
+                           br(), 
+                           inputPanel(
+                             selectInput(inputId = 'theta.model',
+                                         label = 'Select model',
+                                         choices = c('Dynamic Optimised Theta Model', 
+                                                     'Dynamic Standard Theta Model', 
+                                                     'Optimised Theta Model',
+                                                     'Standard Theta Model',
+                                                     'Standard Theta Method (STheta)'),
+                                         selected = 'Dynamic Optimised Theta Model'),
+                             selectInput(inputId = 's', 
+                                         label = 'Seasonality', 
+                                         choices = c('Multiplicative' = 'T', 'Additive'='additive', 'Unknown'='NULL'),
+                                         selected = 'NULL'),
+                             selectInput(label = 'Optimization Method', inputId = 'opt.method', choices = c('Nelder-Mead', 'L-BFGS-B', 'SANN'),selected = 'Nelder-Mead')),
+                           value=5),
                   # tabPanel("GARCH", icon = icon("line-chart"), h4("GARCH"), 
                   #          br(), 
                   #          inputPanel(
@@ -359,9 +376,15 @@ server <- function(input, output, session) {
   
   observeEvent(input$evaluation_type,{
     if(input$evaluation_type == 1){
-      updateAwesomeCheckboxGroup(session = session,inputId = "Algorithm",choices = c("NAIVE","DRIFT","ARIMA", "ETS", 'TBATS', 'PROPHET'),inline = T)
+      updateAwesomeCheckboxGroup(session = session,
+                                 inputId = "Algorithm",
+                                 choices = c("NAIVE","DRIFT","ARIMA", "ETS", 'TBATS', 'PROPHET','THETA'),
+                                 inline = T)
     } else {
-      updateAwesomeCheckboxGroup(session = session,inputId = "Algorithm",choices = c("NAIVE","DRIFT","ARIMA", "ETS", 'TBATS','PROPHET'),inline = T)
+      updateAwesomeCheckboxGroup(session = session,
+                                 inputId = "Algorithm",
+                                 choices = c("NAIVE","DRIFT","ARIMA", "ETS", 'TBATS','PROPHET','THETA'),
+                                 inline = T)
     }
   })
   
@@ -394,47 +417,6 @@ server <- function(input, output, session) {
       message('Evaluating')
       forecasts <- list()
       
-      if("NAIVE" %in% input$Algorithm) {
-        if(input$evaluation_type == 1){
-          forecasts$NAIVE <- list()
-          if(input$seasonal_naive == T){
-            forecastFit <- snaive(reactiveVariables$Series_to_Fit, h = length(reactiveVariables$Series_to_Evaluate))
-          }else{
-            forecastFit <- naive(reactiveVariables$Series_to_Fit, h = length(reactiveVariables$Series_to_Evaluate))
-          }
-          forecastFit_dt <- as.data.table(forecastFit)
-          forecasts$NAIVE[['Fit']] <- forecastFit$model
-          forecasts$NAIVE[['Forecast']] <- forecastFit_dt[, `Point Forecast`]
-          forecasts$NAIVE[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-          forecasts$NAIVE[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-          forecasts$NAIVE[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-        } else{
-          if(input$seasonal_naive == T){
-            forecastFit <- tsCV(y = reactiveVariables$TotalSeries,
-                                forecastfunction = snaive, 
-                                h = input$horizon,
-                                window = 5,
-                                initial = floor(length(reactiveVariables$TotalSeries)/2)) 
-          }else{
-            forecastFit <- tsCV(y = reactiveVariables$TotalSeries,
-                                forecastfunction = naive, 
-                                h = input$horizon,
-                                window = 5,
-                                initial = floor(length(reactiveVariables$TotalSeries)/2)) 
-          }
-          if(input$horizon > 1){
-            forecastFit_dt <- as.data.table(forecastFit)
-            forecasts$NAIVE[['MAE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})]
-            forecasts$NAIVE[['RMSE']]  <- forecastFit_dt[,lapply(.SD, function(x){ sqrt(mean(x^2, na.rm=TRUE))})]
-            forecasts$NAIVE[['MAPE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x/reactiveVariables$TotalSeries), na.rm = T)})]
-          } else {
-            forecasts$NAIVE[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
-            forecasts$NAIVE[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
-            forecasts$NAIVE[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
-          }
-        }
-      }
-      
       if("DRIFT" %in% input$Algorithm) {
         if(input$evaluation_type == 1){
           forecasts$DRIFT <- list()
@@ -446,7 +428,7 @@ server <- function(input, output, session) {
           forecasts$DRIFT[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
           forecasts$DRIFT[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
         } else {
-          forecastFit <- tsCV(y = reactiveVariables$TotalSeries,
+          forecastFit <- time_series_cv(y = reactiveVariables$TotalSeries,
                               forecastfunction = rwf,
                               h = input$horizon,
                               window = 5,
@@ -464,7 +446,47 @@ server <- function(input, output, session) {
         }
       }
       
-      
+      if("NAIVE" %in% input$Algorithm) {
+        if(input$evaluation_type == 1){
+          forecasts$NAIVE <- list()
+          if(input$seasonal_naive == T){
+            forecastFit <- snaive(reactiveVariables$Series_to_Fit, h = length(reactiveVariables$Series_to_Evaluate))
+          }else{
+            forecastFit <- naive(reactiveVariables$Series_to_Fit, h = length(reactiveVariables$Series_to_Evaluate))
+          }
+          forecastFit_dt <- as.data.table(forecastFit)
+          forecasts$NAIVE[['Fit']] <- forecastFit$model
+          forecasts$NAIVE[['Forecast']] <- forecastFit_dt[, `Point Forecast`]
+          forecasts$NAIVE[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
+          forecasts$NAIVE[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
+          forecasts$NAIVE[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
+        } else{
+          if(input$seasonal_naive == T){
+            forecastFit <- time_series_cv(y = reactiveVariables$TotalSeries,
+                                forecastfunction = snaive, 
+                                h = input$horizon,
+                                window = 5,
+                                initial = floor(length(reactiveVariables$TotalSeries)/2)) 
+          }else{
+            forecastFit <- time_series_cv(y = reactiveVariables$TotalSeries,
+                                forecastfunction = naive, 
+                                h = input$horizon,
+                                window = 5,
+                                initial = floor(length(reactiveVariables$TotalSeries)/2)) 
+          }
+          if(input$horizon > 1){
+            forecastFit_dt <- as.data.table(forecastFit)
+            forecasts$NAIVE[['MAE']]   <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})]
+            forecasts$NAIVE[['RMSE']]  <- forecastFit_dt[,lapply(.SD, function(x){ sqrt(mean(x^2, na.rm=TRUE))})]
+            forecasts$NAIVE[['MAPE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x/reactiveVariables$TotalSeries), na.rm = T)})]
+          } else {
+            forecasts$NAIVE[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
+            forecasts$NAIVE[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
+            forecasts$NAIVE[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
+          }
+        }
+      }
+
       if("ARIMA" %in% input$Algorithm) {
            if(input$evaluation_type == 1) {
               forecasts$ARIMA <- list()
@@ -545,17 +567,17 @@ server <- function(input, output, session) {
                              stepwise = T)
              forecast(fit,h)
            }
-           forecastFit <- try(tsCV(y = reactiveVariables$TotalSeries,
-                                   forecastfunction = forecast_Arima, 
-                                   h = input$horizon,
-                                   window = 5,
-                                   initial = floor(length(reactiveVariables$TotalSeries)/2)) )
+           forecastFit <- try(time_series_cv(y = reactiveVariables$TotalSeries,
+                                             forecastfunction = forecast_Arima, 
+                                             h = input$horizon,
+                                             window = 5,
+                                             initial = floor(length(reactiveVariables$TotalSeries)/2)) )
            if (is(forecastFit, 'try-error')) {
              forecasts$ARIMA <- NULL
            } else {
              if(input$horizon > 1){
                forecastFit_dt <- as.data.table(forecastFit)
-               forecasts$ARIMA[['MAE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})]
+               forecasts$ARIMA[['MAE']]   <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})]
                forecasts$ARIMA[['RMSE']]  <- forecastFit_dt[,lapply(.SD, function(x){ sqrt(mean(x^2, na.rm=TRUE))})]
                forecasts$ARIMA[['MAPE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x/reactiveVariables$TotalSeries), na.rm = T)})]
              } else {
@@ -569,7 +591,7 @@ server <- function(input, output, session) {
              forecasts$ARIMA_seasonality_decomposition <- list()
              decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
              seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
-             forecastFit <- try(tsCV(y = seasonaly_adjusted,
+             forecastFit <- try(time_series_cv(y = seasonaly_adjusted,
                                      forecastfunction = forecast_Arima,
                                      h = input$horizon,
                                      window = 5,
@@ -639,8 +661,7 @@ server <- function(input, output, session) {
             fit = ets(x,model=model, allow.multiplicative.trend = input$allow.multiplicative.trend)
             forecast(fit,h)
           }
-          
-          forecastFit <- try(tsCV(y = reactiveVariables$TotalSeries,
+          forecastFit <- try(time_series_cv(y = reactiveVariables$TotalSeries,
                                   forecastfunction = forecast_ETS,
                                   h = input$horizon,
                                   window = 5,
@@ -664,7 +685,7 @@ server <- function(input, output, session) {
             forecasts$ETS_seasonality_decomposition <- list()
             decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
             seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
-            forecastFit <- try(tsCV(y = seasonaly_adjusted,
+            forecastFit <- try(time_series_cv(y = seasonaly_adjusted,
                                     forecastfunction = forecast_ETS,
                                     h = input$horizon,
                                     window = 5,
@@ -682,10 +703,6 @@ server <- function(input, output, session) {
                 forecasts$ETS_seasonality_decomposition[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
                 forecasts$ETS_seasonality_decomposition[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
               }
-              
-              # forecasts$ETS_seasonality_decomposition[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
-              # forecasts$ETS_seasonality_decomposition[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
-              # forecasts$ETS_seasonality_decomposition[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
             }
           } 
         }
@@ -712,8 +729,7 @@ server <- function(input, output, session) {
             fit = tbats(x,use.arma.errors = input$use.arma.errors)
             forecast(fit,h)
           }
-          
-          forecastFit <- try(tsCV(y = reactiveVariables$TotalSeries,
+          forecastFit <- try(time_series_cv(y = reactiveVariables$TotalSeries,
                                   forecastfunction = forecast_TBATS, 
                                   h = input$horizon,
                                   window = 5,
@@ -736,8 +752,7 @@ server <- function(input, output, session) {
         }
         
       }
-      
-      
+
       if("PROPHET" %in% input$Algorithm){
         if(input$evaluation_type == 1) {
         forecasts$PROPHET <- list()
@@ -912,7 +927,77 @@ server <- function(input, output, session) {
         # }
       }
       
-      
+      if("THETA" %in% input$Algorithm) {
+        theta_model <- function(y, model, opt.method, s, h){
+          if(length(y) <= frequency(y)){
+              if(s=='NULL'){
+                ss <- 'additive'
+              }else if(s=='additive'){
+                ss <- 'additive'
+              }else{
+                ss <- TRUE
+              }
+          } else {
+              if(s=='NULL'){
+                ss <- NULL
+              }else if(s=='additive'){
+                ss <- 'additive'
+              }else{
+                ss <- TRUE
+              }
+          }
+          switch(model,
+                 'Dynamic Optimised Theta Model' = dotm(y=y, opt.method=opt.method, s=ss, h=h), 
+                 'Dynamic Standard Theta Model' = dstm(y=y, opt.method=opt.method, s=ss, h=h), 
+                 'Optimised Theta Model' = otm(y=y, opt.method=opt.method, s=ss, h=h),
+                 'Standard Theta Model' = stm(y=y, opt.method=opt.method, s=ss, h=h),
+                 'Standard Theta Method (STheta)' = stheta(y=y, opt.method=opt.method, s=ss, h=h))
+        }
+        
+        if(input$evaluation_type == 1){
+          forecasts$THETA <- list()
+          forecastFit <- theta_model(y = reactiveVariables$Series_to_Fit,
+                                     h = length(reactiveVariables$Series_to_Evaluate),
+                                     opt.method = input$opt.method,
+                                     s = input$s,
+                                     model = input$theta.model)
+
+          forecasting_mean <- head(forecastFit$mean,length(reactiveVariables$Series_to_Evaluate))
+          forecasts$THETA[['Fit']] <- forecastFit$method
+          forecasts$THETA[['Forecast']] <-  forecasting_mean
+          forecasts$THETA[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, forecasting_mean)
+          forecasts$THETA[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecasting_mean)
+          forecasts$THETA[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecasting_mean)
+        } else{
+            forecasts$THETA <- list()
+            forecastFit <- try(time_series_cv(y = reactiveVariables$TotalSeries,
+                                forecastfunction = theta_model, 
+                                h = input$horizon,
+                                opt.method = input$opt.method,
+                                s = input$s,
+                                model = input$theta.model,
+                                window = 5,
+                                initial = floor(length(reactiveVariables$TotalSeries)/2))) 
+            
+            if (is(forecastFit, 'try-error')) {
+              forecasts$THETA <-  NULL
+            } else{
+
+                if(input$horizon > 1){
+                  forecastFit_dt <- as.data.table(forecastFit)
+                  forecasts$THETA[['MAE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})]
+                  forecasts$THETA[['RMSE']]  <- forecastFit_dt[,lapply(.SD, function(x){ sqrt(mean(x^2, na.rm=TRUE))})]
+                  forecasts$THETA[['MAPE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x/reactiveVariables$TotalSeries), na.rm = T)})]
+                } else {
+                  forecasts$THETA[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
+                  forecasts$THETA[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
+                  forecasts$THETA[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
+                }
+            
+            }
+            
+        }
+      }
       
       # if(input$ensemble & input$evaluation_type == 1){
       #   forecasts$ENSEMBLE <- list()
@@ -1149,6 +1234,13 @@ server <- function(input, output, session) {
       forecasts_ahead <- list()
       Result_dt <- reactiveVariables$Results
       Algorithms <- reactiveVariables$Results[input$results_rows_selected,Algorithm]
+      
+      if("DRIFT" %in% Algorithms) {
+        forecasts_ahead$DRIFT <- list()
+        forecastFit <- rwf(reactiveVariables$TotalSeries, h=input$forecast_horizon, drift=TRUE)
+        forecastFit_dt <- as.data.table(forecastFit)
+        forecasts_ahead$DRIFT[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
+      }
         
       if ("NAIVE" %in% Algorithms) {
         forecasts_ahead$NAIVE <- list()
@@ -1159,13 +1251,6 @@ server <- function(input, output, session) {
         }
         forecastFit_dt <- as.data.table(forecastFit)
         forecasts_ahead$NAIVE[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
-      }
-      
-      if("DRIFT" %in% Algorithms) {
-          forecasts_ahead$DRIFT <- list()
-          forecastFit <- rwf(reactiveVariables$TotalSeries, h=input$forecast_horizon, drift=TRUE)
-          forecastFit_dt <- as.data.table(forecastFit)
-          forecasts_ahead$DRIFT[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
       }
 
       if("ARIMA" %in% Algorithms) {
@@ -1345,6 +1430,55 @@ server <- function(input, output, session) {
                                        'Hi 95' = as.vector(forecastFit@forc@forecast$seriesFor) + as.vector(forecastFit@forc@forecast$sigmaFor))
           forecasts_ahead$GARCH[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
         }
+      }
+      
+      
+      if("THETA" %in% Algorithms) {
+        theta_model <- function(y, model, opt.method, s, h){
+          if(length(y) <= frequency(y)){
+            if(s=='NULL'){
+              ss <- 'additive'
+            }else if(s=='additive'){
+              ss <- 'additive'
+            }else{
+              ss <- TRUE
+            }
+          } else {
+            if(s=='NULL'){
+              ss <- NULL
+            }else if(s=='additive'){
+              ss <- 'additive'
+            }else{
+              ss <- TRUE
+            }
+          }
+          switch(model,
+                 'Dynamic Optimised Theta Model' = dotm(y=y, opt.method=opt.method, s=ss, h=h), 
+                 'Dynamic Standard Theta Model' = dstm(y=y, opt.method=opt.method, s=ss, h=h), 
+                 'Optimised Theta Model' = otm(y=y, opt.method=opt.method, s=ss, h=h),
+                 'Standard Theta Model' = stm(y=y, opt.method=opt.method, s=ss, h=h),
+                 'Standard Theta Method (STheta)' = stheta(y=y, opt.method=opt.method, s=ss, h=h))
+        }
+        forecasts_ahead$THETA <- list()
+        forecastFit <- theta_model(y = reactiveVariables$TotalSeries,
+                                   h = input$forecast_horizon,
+                                   opt.method = input$opt.method,
+                                   s = input$s,
+                                   model = input$theta.model)
+        if(input$forecast_horizon > 1){
+          forecasting_mean <- head(forecastFit$mean,input$forecast_horizon)
+          forecasting_Lo <- head(as.data.table(forecastFit$lower)$`Lo 95`,input$forecast_horizon)
+          forecasting_Hi <- head(as.data.table(forecastFit$upper)$`Hi 95`,input$forecast_horizon)
+        } else {
+          forecasting_mean <- head(forecastFit$mean,input$forecast_horizon)
+          forecasting_Lo <- head(as.data.table(forecastFit$lower)$`x`,input$forecast_horizon)
+          forecasting_Hi <- head(as.data.table(forecastFit$upper)$`x`,input$forecast_horizon)
+        }
+        forecastFit_dt <- data.table('Point Forecast' = forecasting_mean, 
+                                     'Lo 95' =  forecasting_Lo, 
+                                     'Hi 95' = forecasting_Hi)
+        forecasts_ahead$THETA[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
+        
       }
       removeModal()
       message('Left forecast')
