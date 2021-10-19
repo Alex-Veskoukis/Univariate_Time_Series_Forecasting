@@ -418,6 +418,7 @@ server <- function(input, output, session) {
       forecasts <- list()
       
       if("DRIFT" %in% input$Algorithm) {
+        message('Evaluating DRIFT')
         if(input$evaluation_type == 1){
           forecasts$DRIFT <- list()
           forecastFit <- rwf(reactiveVariables$Series_to_Fit, h=length(reactiveVariables$Series_to_Evaluate), drift=TRUE)
@@ -447,6 +448,7 @@ server <- function(input, output, session) {
       }
       
       if("NAIVE" %in% input$Algorithm) {
+        message('Evaluating NAIVE')
         if(input$evaluation_type == 1){
           forecasts$NAIVE <- list()
           if(input$seasonal_naive == T){
@@ -488,6 +490,7 @@ server <- function(input, output, session) {
       }
 
       if("ARIMA" %in% input$Algorithm) {
+        message('Evaluating ARIMA')
            if(input$evaluation_type == 1) {
               forecasts$ARIMA <- list()
               fit <- try(auto.arima(reactiveVariables$Series_to_Fit,
@@ -616,6 +619,7 @@ server <- function(input, output, session) {
       }
       
       if("ETS" %in% input$Algorithm){
+        message('Evaluating ETS')
         if(input$evaluation_type == 1) {
           forecasts$ETS <- list()
           model <- paste0(input$errortype,input$trendtype,input$seasontype)
@@ -709,6 +713,7 @@ server <- function(input, output, session) {
       } 
       
       if("TBATS" %in% input$Algorithm){
+        message('Evaluating TBATS')
         if(input$evaluation_type == 1) {
           forecasts$TBATS <- list()
           fit <- try(tbats(reactiveVariables$Series_to_Fit,use.arma.errors = input$use.arma.errors))
@@ -754,6 +759,7 @@ server <- function(input, output, session) {
       }
 
       if("PROPHET" %in% input$Algorithm){
+        message('Evaluating PROPHET')
         if(input$evaluation_type == 1) {
         forecasts$PROPHET <- list()
         
@@ -823,8 +829,7 @@ server <- function(input, output, session) {
                                        by = freq),
                            y = reactiveVariables$TotalSeries)
           
-         
-          forecastFit <- try(crossValidationProphet(dt, 
+          forecastFit <- try(crossValidationProphet(dt = dt, 
                                         horizon = input$horizon,
                                         window = 5,
                                         initial = floor(length(reactiveVariables$TotalSeries)/2)))
@@ -928,6 +933,7 @@ server <- function(input, output, session) {
       }
       
       if("THETA" %in% input$Algorithm) {
+        message('Evaluating THETA')
         theta_model <- function(y, model, opt.method, s, h){
           if(length(y) <= frequency(y)){
               if(s=='NULL'){
@@ -1031,9 +1037,10 @@ server <- function(input, output, session) {
 
 
   output$results <- renderDataTable({
-      req(reactiveVariables$evaluation_done)
-      final_results <- copy(reactiveVariables$Forecasts)
-      req(length(final_results) >= 1)
+    req(reactiveVariables$check == T)
+    req(reactiveVariables$evaluation_done)
+    final_results <- copy(reactiveVariables$Forecasts)
+    req(length(final_results) >= 1)
    # browser()
       result_list <- list()
       for(i in  1:length(final_results)){
@@ -1075,6 +1082,7 @@ server <- function(input, output, session) {
   
   
   observeEvent(input$dt_sel, {
+    req(reactiveVariables$check == T)
     if (isTRUE(input$dt_sel)) {
       DT::selectRows(dt_proxy, input$results_rows_all)
     } else {
@@ -1083,6 +1091,7 @@ server <- function(input, output, session) {
   })
   
   output$forecast_widget_container <- renderUI({
+    req(reactiveVariables$check == T)
     req(reactiveVariables$evaluation_done)
     final_results <- reactiveVariables$Forecasts
     req(length(final_results) >= 1)
@@ -1095,6 +1104,7 @@ server <- function(input, output, session) {
   
   
   output$forecast_tabs_container <- renderUI({
+    req(reactiveVariables$check == T)
     req(reactiveVariables$evaluation_done)
     final_results <- reactiveVariables$Forecasts
     req(length(final_results) >= 1)
@@ -1109,6 +1119,7 @@ server <- function(input, output, session) {
   
   
   output$dynamic_tabs <- shiny::renderUI({
+    req(reactiveVariables$check == T)
     req(input$evaluation_type == 1)
     req(reactiveVariables$evaluation_done)
     final_results <- reactiveVariables$Forecasts
@@ -1225,6 +1236,7 @@ server <- function(input, output, session) {
   
   
   observeEvent(input$forecast_ahead,{
+    req(reactiveVariables$check == T)
     if(length(input$results_rows_selected) == 0){
       shinyalert(text = 'Select a row from the results table', type = 'info')
     } else {
@@ -1236,6 +1248,7 @@ server <- function(input, output, session) {
       Algorithms <- reactiveVariables$Results[input$results_rows_selected,Algorithm]
       
       if("DRIFT" %in% Algorithms) {
+        message('Forecasting DRIFT')
         forecasts_ahead$DRIFT <- list()
         forecastFit <- rwf(reactiveVariables$TotalSeries, h=input$forecast_horizon, drift=TRUE)
         forecastFit_dt <- as.data.table(forecastFit)
@@ -1243,6 +1256,7 @@ server <- function(input, output, session) {
       }
         
       if ("NAIVE" %in% Algorithms) {
+        message('Forecasting NAIVE')
         forecasts_ahead$NAIVE <- list()
         if (input$seasonal_naive == T) {
           forecastFit <- snaive(reactiveVariables$TotalSeries, h = input$forecast_horizon)
@@ -1254,6 +1268,7 @@ server <- function(input, output, session) {
       }
 
       if("ARIMA" %in% Algorithms) {
+        message('Forecasting ARIMA')
           forecasts_ahead$ARIMA <- list()
           fit <- try(auto.arima(reactiveVariables$TotalSeries,
                                 max.p = input$max.p,
@@ -1310,6 +1325,7 @@ server <- function(input, output, session) {
       }
       
       if("ETS" %in% Algorithms){
+        message('Forecasting ETS')
           forecasts_ahead$ETS <- list()
           model <- paste0(input$errortype,input$trendtype,input$seasontype)
           fit <- try(ets(reactiveVariables$TotalSeries,model=model, allow.multiplicative.trend = input$allow.multiplicative.trend))
@@ -1344,6 +1360,7 @@ server <- function(input, output, session) {
       } 
       
       if("TBATS" %in% Algorithms){
+        message('Forecasting TBATS')
           forecasts_ahead$TBATS <- list()
           fit <- try(tbats(reactiveVariables$TotalSeries,use.arma.errors = input$use.arma.errors))
           if (is(fit, 'try-error')) {
@@ -1356,6 +1373,7 @@ server <- function(input, output, session) {
       }
       
       if("PROPHET" %in% Algorithms){
+        message('Forecasting PROPHET')
         forecasts_ahead$PROPHET <- list()
         if(input$frequency_known == 1 & !is.null(input$frequency)){
           freq_int <- as.numeric(input$frequency)
@@ -1431,9 +1449,9 @@ server <- function(input, output, session) {
           forecasts_ahead$GARCH[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
         }
       }
-      
-      
+
       if("THETA" %in% Algorithms) {
+        message('Forecasting THETA')
         theta_model <- function(y, model, opt.method, s, h){
           if(length(y) <= frequency(y)){
             if(s=='NULL'){
@@ -1488,7 +1506,7 @@ server <- function(input, output, session) {
   
   
   output$dynamic_tabs2 <- shiny::renderUI({
-    
+    req(reactiveVariables$check == T)
     req(input$forecast_ahead)
     req(reactiveVariables$evaluation_done)
     final_results <- reactiveVariables$Forecasts_ahead

@@ -166,7 +166,7 @@ chunk <- function(x, n, force.number.of.groups = TRUE, len = length(x), groups =
   return(g[g.names.ordered])
 }
 
-crossValidationProphetIncludingWindow <- function(dt, horizon, window, initial){
+crossValidationProphetExcludingInitial <- function(dt, horizon, window, initial){
   freq_int <- findfrequency(dt)
   valid_frequency <-  c( 1, 7, 12, 4, 365)
   names(valid_frequency) <-  c('day', 'week', 'month', 'quarter', 'year')
@@ -232,13 +232,13 @@ crossValidationProphet <- function(dt, horizon, window, initial){
   check <- data.table(valid_frequency = valid_frequency, freq_int = freq_int, name = names(valid_frequency))
   check[,diff := abs(valid_frequency - freq_int)]
   freq <- check[which.min(diff),name]
-  initial <- head(dt,initial)
+  initial_dt <- head(dt,initial)
   rest <- dt[(initial+1):nrow(dt)]
   buckets <- ceiling((nrow(rest) - horizon)/window)+1
   trainlists <- list()
   evaluationlists <- list()
   restlist <- list()
-  trainlists[[1]] <- initial
+  trainlists[[1]] <- initial_dt
   restlist[[1]] <- rest
   evaluationlists[[1]] <- rest[1:horizon]
   i <- 2
@@ -280,6 +280,8 @@ crossValidationProphet <- function(dt, horizon, window, initial){
   final_results <- dcast(final_results, Metric ~ paste0('h=', horizon), value.var = 'V1')
   return(final_results)
 }
+
+
 time_series_cv <- function (y, forecastfunction, h = 1, window = NULL, xreg = NULL, initial = 0, ...){
   y <- as.ts(y)
   n <- length(y)
