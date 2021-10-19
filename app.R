@@ -17,7 +17,9 @@ library(shinyjs)
 # library(shinybusy)
 
 source("helper_functions.R")
-#### UI ####
+#   __________________ #< 32434cad3820760be475483b522ed57d ># __________________
+#   UI                                                                      ####
+
 ui <- fluidPage(theme = shinytheme("superhero"),
 tags$style(style),
 useShinyjs(),
@@ -55,8 +57,7 @@ hidden(div(align = 'left',
                  choices = c("NAIVE","DRIFT","ARIMA", "ETS", 'TBATS', 'PROPHET', 'THETA'),
                  selected = "NAIVE", 
                  inline = TRUE),
-# conditionalPanel(condition = 'input.Algorithm.length > 1',
-    #                  checkboxInput('ensemble','Evaluate Ensemble')),
+    uiOutput('ensemble_params'),
     br(),
     h3('Algorithms Settings'),
       tabsetPanel(type="tabs",
@@ -215,8 +216,11 @@ uiOutput('forecast_tabs_container')
 
 
 
-#### server ####
+                                                                   ####
+#   __________________ #< c80e0aeda84da32ec88df7b57ee4735e ># __________________
+#   SERVER                                                                  ####
 server <- function(input, output, session) {
+  
   reactiveVariables <- reactiveValues()
   reactiveVariables$check <- F
   reactiveVariables$evaluation_done <- F
@@ -225,7 +229,7 @@ server <- function(input, output, session) {
     inFile <- input$i_file
     if (is.null(inFile))
       return(NULL)
-    mySeries <- fread(inFile$datapath)
+    mySeries <- fread(inFile$datapath, encoding = 'UTF-8')
     reactiveVariables$Series <- mySeries
     reactiveVariables$SeriesNames <- names(mySeries)
   })
@@ -262,11 +266,18 @@ server <- function(input, output, session) {
     } 
   })
   
+##  .................. #< 1160059a5e062dc3e74ef06c65f639c0 ># ..................
+##  Time series reading                                                     ####
+
   observeEvent(input$submit,{
     myTimeSeries <- as.numeric(reactiveVariables$Series[[input$variable]])
     if(sum(is.na(myTimeSeries)) > 0){
       shinyalert(title = "An error occured reading the data. Make sure there are not missing values and the column contains only numbers.", 
-                 type = "error")
+                 type = "error",
+                 timer = 3000,
+                 closeOnEsc = T,
+                 showConfirmButton = F,
+                 closeOnClickOutside = T)
     } else {
         if(input$frequency_known == 1 & !is.null(input$frequency)){
           reactiveVariables$TotalSeries <- ts(myTimeSeries[!is.na(myTimeSeries)], frequency = as.numeric(input$frequency))
@@ -299,6 +310,9 @@ server <- function(input, output, session) {
   }
 })
    
+##  .................. #< d3886288115023d7a08569cc0540baa2 ># ..................
+##  Chart time series                                                       ####
+
   output$series <- renderHighchart({
     req(reactiveVariables$check == T)
     series <- as.vector(reactiveVariables$TotalSeries)
@@ -368,14 +382,6 @@ server <- function(input, output, session) {
     }
   })
   
-  # output$obs <-reactive({
-  #   if(reactiveVariables$check == T){
-  #     length(reactiveVariables$Series_to_Fit)
-  #   } else {
-  #     0
-  #   }
-  # })
-  
   observeEvent(input$evaluation_type,{
     if(input$evaluation_type == 1){
       updateAwesomeCheckboxGroup(session = session,
@@ -390,14 +396,43 @@ server <- function(input, output, session) {
     }
   })
   
-  # output$frequency <-reactive({
-  #   if(reactiveVariables$check == T){
-  #     findfrequency(reactiveVariables$Total_Series)
-  #   } else {
-  #     0
-  #   }
-  # })
-  # outputOptions(output, "obs", suspendWhenHidden = FALSE)
+  
+  
+### . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ..
+### Enseble selection                                                       ####
+
+  output$ensemble_params <- renderUI({
+    req(input$evaluation_type == 1)
+    if(length(input$Algorithm) == 2){
+      checkboxInput('ensemble','Evaluate Ensemble')
+    } else if (length(input$Algorithm) > 2){
+      tagList(checkboxInput('ensemble','Evaluate Ensemble',value = F),
+              selectInput(inputId = 'ensemble_algorithms',
+                          label = 'Pick Algorithms to ensemble',
+                          choices = input$Algorithm,
+                          multiple = T))
+    } else {
+      NULL
+    }
+  })
+  
+  to_ensemble <- reactive({
+    req(input$evaluation_type == 1)
+    req(input$ensemble)
+    if(length(input$Algorithm) == 2){
+      input$Algorithm
+    } else if(length(input$Algorithm) > 2){
+      if(length(input$ensemble_algorithms) == 0){
+        NULL
+      } else if(length(input$ensemble_algorithms) == 1){
+        NULL
+      } else {
+       input$ensemble_algorithms
+      }
+    } else {
+      NULL
+    }
+  })
   
   observeEvent(c(input$i_file,
                  input$variable,
@@ -412,6 +447,9 @@ server <- function(input, output, session) {
   
   
 
+##  .................. #< e6b0845ddb2be58be6d88276c18d8b7f ># ..................
+##  Evaluate Algorithms                                                     ####
+
   observeEvent(input$evaluate,{
     req(length(input$Algorithm) > 0)
     if (reactiveVariables$check == T) {
@@ -419,6 +457,9 @@ server <- function(input, output, session) {
       message('Evaluating')
       forecasts <- list()
       
+### . . . . . . . . .. #< c53d563091a835d35f8171cf29dd65b3 ># . . . . . . . . ..
+### DRIFT                                                                   ####
+
       if("DRIFT" %in% input$Algorithm) {
         message('Evaluating DRIFT')
         if(input$evaluation_type == 1){
@@ -449,6 +490,9 @@ server <- function(input, output, session) {
         }
       }
       
+### . . . . . . . . .. #< b1639019df2cce3e8a36505079eed67a ># . . . . . . . . ..
+### NAIVE                                                                   ####
+
       if("NAIVE" %in% input$Algorithm) {
         message('Evaluating NAIVE')
         if(input$evaluation_type == 1){
@@ -490,6 +534,9 @@ server <- function(input, output, session) {
           }
         }
       }
+
+### . . . . . . . . .. #< b3a6167b3ff6b20c0cbaae7bdce45775 ># . . . . . . . . ..
+### ARIMA                                                                   ####
 
       if("ARIMA" %in% input$Algorithm) {
         message('Evaluating ARIMA')
@@ -620,6 +667,9 @@ server <- function(input, output, session) {
          }    
       }
       
+### . . . . . . . . .. #< ee13e415784cd35d52f0e3b05f4bb074 ># . . . . . . . . ..
+### ETS                                                                     ####
+
       if("ETS" %in% input$Algorithm){
         message('Evaluating ETS')
         if(input$evaluation_type == 1) {
@@ -714,6 +764,9 @@ server <- function(input, output, session) {
         }
       } 
       
+### . . . . . . . . .. #< 5105bd2a0698cfb3f50d3e304810eb7a ># . . . . . . . . ..
+### TBATS                                                                   ####
+
       if("TBATS" %in% input$Algorithm){
         message('Evaluating TBATS')
         if(input$evaluation_type == 1) {
@@ -759,6 +812,9 @@ server <- function(input, output, session) {
         }
         
       }
+
+### . . . . . . . . .. #< 094ca0b0d463fea81283d604e5c9f5bf ># . . . . . . . . ..
+### PROPHET                                                                 ####
 
       if("PROPHET" %in% input$Algorithm){
         message('Evaluating PROPHET')
@@ -860,6 +916,9 @@ server <- function(input, output, session) {
         }
       }
       
+### . . . . . . . . .. #< e2767db5fbd90bebf92a595374770134 ># . . . . . . . . ..
+### GARCH (Unavailable)                                                     ####
+
       
       if("GARCH" %in% input$Algorithm & input$evaluation_type == 1) {
         forecasts$GARCH <- list()
@@ -934,6 +993,9 @@ server <- function(input, output, session) {
         # }
       }
       
+### . . . . . . . . .. #< 8025fc324c9392644d0bfd5c01722bdc ># . . . . . . . . ..
+### THETA                                                                   ####
+
       if("THETA" %in% input$Algorithm) {
         message('Evaluating THETA')
         theta_model <- function(y, model, opt.method, s, h){
@@ -966,7 +1028,7 @@ server <- function(input, output, session) {
         if(input$evaluation_type == 1){
           forecasts$THETA <- list()
           forecastFit <- theta_model(y = reactiveVariables$Series_to_Fit,
-                                     h = length(reactiveVariables$Series_to_Evaluate),
+                                     h = length(reactiveVariables$Series_to_Evaluate) + 1,
                                      opt.method = input$opt.method,
                                      s = input$s,
                                      model = input$theta.model)
@@ -981,7 +1043,7 @@ server <- function(input, output, session) {
             forecasts$THETA <- list()
             forecastFit <- try(time_series_cv(y = reactiveVariables$TotalSeries,
                                 forecastfunction = theta_model, 
-                                h = input$horizon,
+                                h = input$horizon+1,
                                 opt.method = input$opt.method,
                                 s = input$s,
                                 model = input$theta.model,
@@ -994,9 +1056,9 @@ server <- function(input, output, session) {
 
                 if(input$horizon > 1){
                   forecastFit_dt <- as.data.table(forecastFit)
-                  forecasts$THETA[['MAE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})]
-                  forecasts$THETA[['RMSE']]  <- forecastFit_dt[,lapply(.SD, function(x){ sqrt(mean(x^2, na.rm=TRUE))})]
-                  forecasts$THETA[['MAPE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x/reactiveVariables$TotalSeries), na.rm = T)})]
+                  forecasts$THETA[['MAE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})][,1:input$horizon]
+                  forecasts$THETA[['RMSE']]  <- forecastFit_dt[,lapply(.SD, function(x){ sqrt(mean(x^2, na.rm=TRUE))})][,1:input$horizon]
+                  forecasts$THETA[['MAPE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x/reactiveVariables$TotalSeries), na.rm = T)})][,1:input$horizon]
                 } else {
                   forecasts$THETA[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
                   forecasts$THETA[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
@@ -1008,26 +1070,27 @@ server <- function(input, output, session) {
         }
       }
       
-      # if(input$ensemble & input$evaluation_type == 1){
-      #   forecasts$ENSEMBLE <- list()
-      #   # browser()
-      #   ensemble_list <- list()
-      #   fit_list <- list()
-      #   for(i in  1:(length(forecasts)-1)){
-      #     dt <- data.table(forecasts[[i]][['Forecast']])
-      #     names(dt) <- names(forecasts[i])
-      #     ensemble_list[[i]] <- dt
-      #     fit_list[[i]] <- forecasts[[i]]['Fit']
-      #   }
-      #   ensemble_dt <- Reduce(f = cbind,ensemble_list,)
-      #   ensemble_dt[, `Point Forecast` := rowMeans(.SD)]
-      #   forecasts$ENSEMBLE[['Fit']] <- fit_list
-      #   forecasts$ENSEMBLE[['Forecast']] <- ensemble_dt[, `Point Forecast`]
-      #   forecasts$ENSEMBLE[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, ensemble_dt[, `Point Forecast`])
-      #   forecasts$ENSEMBLE[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, ensemble_dt[, `Point Forecast`])
-      #   forecasts$ENSEMBLE[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, ensemble_dt[, `Point Forecast`])
-      #   
-      # }
+### . . . . . . . . .. #< 0f7d6d2743442bb708d684621e3247f7 ># . . . . . . . . ..
+### ENSEMPLE                                                                ####
+
+      if(input$ensemble && !is.null(to_ensemble()) & input$evaluation_type == 1){
+        forecasts$ENSEMBLE <- list()
+        ensemble_list <- list()
+        fit_list <- list()
+        to_addup_algorithms <- setdiff(names(forecasts),"ENSEMBLE")
+        for(alg in  to_addup_algorithms){
+          dt <- data.table(forecasts[[alg]][['Forecast']])
+          names(dt) <- names(forecasts[alg])
+          ensemble_list[[alg]] <- dt
+          fit_list[[alg]] <- forecasts[[alg]]['Fit']
+        }
+        ensemble_dt <- Reduce(f = cbind,ensemble_list,)
+        ensemble_dt[, `Point Forecast` := rowMeans(.SD)]
+        forecasts$ENSEMBLE[['Forecast']] <- ensemble_dt[, `Point Forecast`]
+        forecasts$ENSEMBLE[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, ensemble_dt[, `Point Forecast`])
+        forecasts$ENSEMBLE[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, ensemble_dt[, `Point Forecast`])
+        forecasts$ENSEMBLE[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, ensemble_dt[, `Point Forecast`])
+      }
       
       reactiveVariables$evaluation_done <- T
       reactiveVariables$Forecasts <- forecasts
@@ -1038,6 +1101,9 @@ server <- function(input, output, session) {
     })
   
 
+
+##  .................. #< 24c696a83dee6360f154817b64f527d8 ># ..................
+##  Evaluation Resutls Table                                                ####
 
   output$results <- renderDataTable({
     req(reactiveVariables$check == T)
@@ -1083,7 +1149,6 @@ server <- function(input, output, session) {
   
   dt_proxy <- DT::dataTableProxy("results")
   
-  
   observeEvent(input$dt_sel, {
     req(reactiveVariables$check == T)
     if (isTRUE(input$dt_sel)) {
@@ -1103,9 +1168,7 @@ server <- function(input, output, session) {
                             label = "Forecast ahead with the selected row from the evaluation's results table"),
       numericInput('forecast_horizon','Forecast horizon',value =1, min=1,max =100,width = '100px'))
   })
-  
-  
-  
+
   output$forecast_tabs_container <- renderUI({
     req(reactiveVariables$check == T)
     req(reactiveVariables$evaluation_done)
@@ -1117,10 +1180,7 @@ server <- function(input, output, session) {
       shiny::uiOutput("dynamic_tabs2")
     # )
   })
-  
-  
-  
-  
+
   output$dynamic_tabs <- shiny::renderUI({
     req(reactiveVariables$check == T)
     req(input$evaluation_type == 1)
@@ -1236,12 +1296,18 @@ server <- function(input, output, session) {
             args = gap %>% append(list(type = "tabs", id   = "evaluation_charts")))
     
   })
-  
-  
+
+##  .................. #< 6a18d31a9e8543e6ad7168bda94b7535 ># ..................
+##  Forecasting                                                             ####
+
   observeEvent(input$forecast_ahead,{
     req(reactiveVariables$check == T)
     if(length(input$results_rows_selected) == 0){
-      shinyalert(text = 'Select a row from the results table', type = 'info')
+      shinyalert(text = 'Select a row from the results table', type = 'info',
+                 timer = 3000,
+                 closeOnEsc = T,
+                 showConfirmButton = F,
+                 closeOnClickOutside = T)
     } else {
   
       showModal(Modal(text = ""))
@@ -1250,6 +1316,9 @@ server <- function(input, output, session) {
       Result_dt <- reactiveVariables$Results
       Algorithms <- reactiveVariables$Results[input$results_rows_selected,Algorithm]
       
+#### . . . . . . . . .. #< 2f343b2d516182ef8966454ae20d2a53 ># . . . . . . . . ..
+#### DRIFT                                                                   ####
+
       if("DRIFT" %in% Algorithms) {
         message('Forecasting DRIFT')
         forecasts_ahead$DRIFT <- list()
@@ -1258,6 +1327,9 @@ server <- function(input, output, session) {
         forecasts_ahead$DRIFT[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
       }
         
+### . . . . . . . . .. #< a0921dd4a3b7bc310493699c734bab0a ># . . . . . . . . ..
+### NAIVE                                                                   ####
+
       if ("NAIVE" %in% Algorithms) {
         message('Forecasting NAIVE')
         forecasts_ahead$NAIVE <- list()
@@ -1269,6 +1341,9 @@ server <- function(input, output, session) {
         forecastFit_dt <- as.data.table(forecastFit)
         forecasts_ahead$NAIVE[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
       }
+
+### . . . . . . . . .. #< d2c567bb885ae625779fb22fdb87a87b ># . . . . . . . . ..
+### ARIMA                                                                   ####
 
       if("ARIMA" %in% Algorithms) {
         message('Forecasting ARIMA')
@@ -1327,6 +1402,9 @@ server <- function(input, output, session) {
           }
       }
       
+### . . . . . . . . .. #< 044c8add4ad5eb01d51d2e75078f2d8d ># . . . . . . . . ..
+### ETS                                                                     ####
+
       if("ETS" %in% Algorithms){
         message('Forecasting ETS')
           forecasts_ahead$ETS <- list()
@@ -1362,6 +1440,9 @@ server <- function(input, output, session) {
 
       } 
       
+### . . . . . . . . .. #< 76a4e2451752cd2f1b608013513b382d ># . . . . . . . . ..
+### TBATS                                                                   ####
+
       if("TBATS" %in% Algorithms){
         message('Forecasting TBATS')
           forecasts_ahead$TBATS <- list()
@@ -1375,6 +1456,9 @@ server <- function(input, output, session) {
           }
       }
       
+### . . . . . . . . .. #< 13683ac583e4e01c71d5ca3f56d576fa ># . . . . . . . . ..
+### PROPHET                                                                 ####
+
       if("PROPHET" %in% Algorithms){
         message('Forecasting PROPHET')
         forecasts_ahead$PROPHET <- list()
@@ -1418,6 +1502,9 @@ server <- function(input, output, session) {
         }
       }
 
+### . . . . . . . . .. #< e6f0a7fb3efbd4c2f3ef790de27a3b41 ># . . . . . . . . ..
+### GARCH (Unavailable)                                                     ####
+
       if("GARCH" %in% Algorithms & input$evaluation_type == 1) {
         forecasts_ahead$GARCH <- list()
         spec <- ugarchspec(
@@ -1452,6 +1539,9 @@ server <- function(input, output, session) {
           forecasts_ahead$GARCH[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
         }
       }
+
+### . . . . . . . . .. #< b5b979f6387908b18e37ac78146a6a37 ># . . . . . . . . ..
+### THETA                                                                   ####
 
       if("THETA" %in% Algorithms) {
         message('Forecasting THETA')
@@ -1501,6 +1591,24 @@ server <- function(input, output, session) {
         forecasts_ahead$THETA[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
         
       }
+      
+      if("ENSEMBLE" %in% Algorithms){
+        forecasts_ahead$ENSEMBLE <- list()
+        ensemble_list <- list()
+        fit_list <- list()
+        to_addup_algorithms <- setdiff(names(forecasts),"ENSEMBLE")
+        for(alg in  to_addup_algorithms){
+          dt <- data.table(forecasts[[alg]][['Forecast']])
+          names(dt) <- names(forecasts[alg])
+          ensemble_list[[alg]] <- dt
+          fit_list[[alg]] <- forecasts[[alg]]['Fit']
+        }
+        ensemble_dt <- Reduce(f = cbind,ensemble_list,)
+        ensemble_dt[, `Point Forecast` := rowMeans(.SD)]
+        forecasts_ahead$ENSEMBLE[['Forecast']] <- ensemble_dt[, `Point Forecast`]
+      }
+      
+      
       removeModal()
       message('Left forecast')
       reactiveVariables$Forecasts_ahead <- forecasts_ahead
