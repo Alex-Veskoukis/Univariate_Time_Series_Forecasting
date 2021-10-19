@@ -145,7 +145,9 @@ hidden(div(align = 'left',
                                          label = 'Seasonality', 
                                          choices = c('Multiplicative' = 'T', 'Additive'='additive', 'Unknown'='NULL'),
                                          selected = 'NULL'),
-                             selectInput(label = 'Optimization Method', inputId = 'opt.method', choices = c('Nelder-Mead', 'L-BFGS-B', 'SANN'),selected = 'Nelder-Mead')),
+                             conditionalPanel(condition = "input.theta.model != 'Standard Theta Method (STheta)'",
+                                              selectInput(label = 'Optimization Method', inputId = 'opt.method', choices = c('Nelder-Mead', 'L-BFGS-B', 'SANN'),selected = 'Nelder-Mead'))
+                            ),
                            value=5),
                   # tabPanel("GARCH", icon = icon("line-chart"), h4("GARCH"), 
                   #          br(), 
@@ -952,12 +954,13 @@ server <- function(input, output, session) {
                 ss <- TRUE
               }
           }
+          # browser()
           switch(model,
                  'Dynamic Optimised Theta Model' = dotm(y=y, opt.method=opt.method, s=ss, h=h), 
                  'Dynamic Standard Theta Model' = dstm(y=y, opt.method=opt.method, s=ss, h=h), 
                  'Optimised Theta Model' = otm(y=y, opt.method=opt.method, s=ss, h=h),
                  'Standard Theta Model' = stm(y=y, opt.method=opt.method, s=ss, h=h),
-                 'Standard Theta Method (STheta)' = stheta(y=y, opt.method=opt.method, s=ss, h=h))
+                 "Standard Theta Method (STheta)" = stheta(y=y,  s=ss, h=h))
         }
         
         if(input$evaluation_type == 1){
@@ -1475,7 +1478,7 @@ server <- function(input, output, session) {
                  'Dynamic Standard Theta Model' = dstm(y=y, opt.method=opt.method, s=ss, h=h), 
                  'Optimised Theta Model' = otm(y=y, opt.method=opt.method, s=ss, h=h),
                  'Standard Theta Model' = stm(y=y, opt.method=opt.method, s=ss, h=h),
-                 'Standard Theta Method (STheta)' = stheta(y=y, opt.method=opt.method, s=ss, h=h))
+                 'Standard Theta Method (STheta)' = stheta(y=y,  s=ss, h=h))
         }
         forecasts_ahead$THETA <- list()
         forecastFit <- theta_model(y = reactiveVariables$TotalSeries,
