@@ -56,9 +56,9 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                 hr(),
                 awesomeCheckboxGroup(inputId = "Algorithm", 
                                      label = h2("Select Algorithm to Evaluate"), 
-                                     choices = c("NAIVE",
-                                                 "DRIFT",
-                                                 "ARIMA",
+                                     choices = c("DRIFT",
+                                                 "NAIVE",
+                                                 "(S)ARIMA" = 'ARIMA',
                                                  "ETS", 
                                                  'TBATS',
                                                  'PROPHET', 
@@ -78,21 +78,23 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                                        checkboxInput('seasonal_naive','Seasonal',value = T)
                                      ), 
                                      value=0),
-                            tabPanel("ARIMA", icon = icon("line-chart"), h4("ARIMA"),
+                            tabPanel("(S)ARIMA", icon = icon("line-chart"), h4("(S)ARIMA"),
                                      br(),
                                      inputPanel(
-                                       
-                                       numericInput('max.p','max.p',value = 5),
-                                       numericInput('max.q','max.q',value = 5),
-                                       numericInput('max.P','max.P',value = 2),
-                                       numericInput('max.Q','max.Q',value = 2),
-                                       numericInput('max.order','max.order',value = 5),
-                                       numericInput('max.d','max.d',value = 2),
-                                       numericInput('max.D','max.D',value = 1),
-                                       selectInput('ic','Information criterion', choices = c("aicc", "aic", "bic"), selected = "aic"),
-                                       checkboxInput('allowdrift','Allow drift',value = T), 
-                                       checkboxInput('allowmean','Allow mean',value = T),
-                                       checkboxInput('seasonal','Seasonality',value = T)
+                                       numericInput('max.p','Maximum value of AR terms',value = 5),
+                                       numericInput('max.q','Maximum value of MA terms',value = 5),
+                                       numericInput('max.P','Maximum value of seasonal AR terms',value = 2),
+                                       numericInput('max.Q','Maximum value of seasonal MA terms',value = 2),
+                                       numericInput('max.order','Maximum value of p+q+P+Q if model selection is not stepwise',value = 5),
+                                       numericInput('max.d','Maximum value of difference order',value = 2),
+                                       numericInput('max.D','Maximum value of seasonal difference order',value = 1),
+                                       selectInput('arima_ic','Information criterion to evaluate best (S)ARIMA', choices = c("aicc", "aic", "bic"), selected = "aic"),
+                                       selectInput('arima_lambda','Box-Cox transformation parameter', choices = c("No transformation" = 'NULL', "Find optimal" = 'auto'), selected = "NULL"),
+                                       checkboxInput('allowdrift','Consider models with drift terms',value = T), 
+                                       checkboxInput('allowmean','Consider models with a non-zero mean',value = T),
+                                       checkboxInput('seasonal','Allow search to seasonal models?',value = T),
+                                       checkboxInput('approximation','Approximate estimation? (faster but less accurate)',value = T),
+                                       checkboxInput('stepwise','Stepwise selection? (faster but less accurate)',value = T)
                                        # ,
                                        # conditionalPanel(condition = 'input.frequency > 2 & output.obs >= 2*input.frequency',
                                        #                  checkboxInput('arima_decomposition','Decomposition',value = F))
@@ -115,7 +117,17 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                                                    label =   'Season Type',
                                                    choices = c('None'="N",'Additive'="A", 'multiplicative'="M", 'Automatically selected'= "Z"),
                                                    selected = 'Z'),
-                                       checkboxInput('allow.multiplicative.trend', 'Always include multiplicative trend as option',value = F)
+                                       selectInput('ets_lambda','Box-Cox transformation parameter', 
+                                                   choices =  c("No transformation" = 'NULL', "Find optimal" = 'auto'), 
+                                                   selected = "NULL"),
+                                       selectInput('opt.crit','Optimization criterion', 
+                                                   choices = c("Mean Square Error" = 'mse', 
+                                                               "Average MSE over first nmse forecast horizons" = 'amse',
+                                                               "Standard deviation of residuals" = 'sigma',
+                                                               "Mean of absolute residuals" = 'mae',
+                                                               "Log-likelihood" = 'lik'), selected = "lik"),
+                                       selectInput('ets_ic','Information criterion to evaluate best ETS model', choices = c("aicc", "aic", "bic"), selected = "aic"),
+                                       checkboxInput('allow.multiplicative.trend', 'Always include multiplicative trends?',value = T)
                                      ),
                                      value=2),
                             tabPanel("TBATS", icon = icon("line-chart"), h4("TBATS"), 
@@ -131,7 +143,7 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                                        selectInput(label = 'Yearly seasonality', inputId = 'yearly.seasonality', choices = c('auto', TRUE, FALSE),selected = "auto"),
                                        selectInput(label = 'Weekly seasonality', inputId = 'weekly.seasonality', choices = c('auto', TRUE, FALSE),selected = "auto"),
                                        selectInput(label = 'Daily seasonality', inputId = 'daily.seasonality', choices = c('auto', TRUE, FALSE),selected = "auto"),
-                                       numericInput(inputId = 'n.changepoints', label = 'Number of changepoints', value = 25, min = 0, max = 100),
+                                       numericInput(inputId = 'n.changepoints', label = 'Maximum number of trend changepoints', value = 25, min = 0, max = 100),
                                        numericInput(inputId = 'changepoint.range', label = 'Changepoint range', value = 0.8, min = 0.1, max = 1)),
                                      value=4),
                             
@@ -170,7 +182,7 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                                                     max = 100,
                                                     min = 1,
                                                     step = 1),
-                                       selectInput(inputId = 'lamda', 
+                                       selectInput(inputId = 'nnetar_lambda', 
                                                    label = 'Lamda transformation', 
                                                    choices = c('Auto' = 'auto',  'No transformation'='NULL'),
                                                    selected = 'auto'),
@@ -276,19 +288,19 @@ server <- function(input, output, session) {
       sliderInput('holdout', 'Hold-Out observations', value = 1, min = 1, max = floor(length(series)/2), step = 1)
     }
     else{
-      sliderInput('horizon', 'Horizon to evaluate', value = 1, min = 1, max = 5, step = 1)
+      sliderInput('horizon', 'Horizon to evaluate', value = 1, min = 1, max = floor(length(series)/4), step = 1)
     }
   })
   
   output$frequency_type <- renderUI({
     if(input$frequency_known == 1){
       selectInput(inputId = 'frequency',
-                  label = 'Frequency',
-                  choices =  c('day' = 1,
-                               'week' = 7, 
-                               'month' = 12,
-                               'quarter' = 4,
-                               'year' = 365),
+                  label = 'Frequency of observations',
+                  choices =  c('Daily' = 1,
+                               'Weekly' = 7, 
+                               'Monthly' = 12,
+                               'Quarterly' = 4,
+                               'Yearly' = 365),
                   selected = 1)
     } 
   })
@@ -407,19 +419,7 @@ server <- function(input, output, session) {
     }
   })
   
-  observeEvent(input$evaluation_type,{
-    if(input$evaluation_type == 1){
-      updateAwesomeCheckboxGroup(session = session,
-                                 inputId = "Algorithm",
-                                 choices = c("NAIVE","DRIFT","ARIMA", "ETS", 'TBATS', 'PROPHET','THETA','NNETAR'),
-                                 inline = T)
-    } else {
-      updateAwesomeCheckboxGroup(session = session,
-                                 inputId = "Algorithm",
-                                 choices = c("NAIVE","DRIFT","ARIMA", "ETS", 'TBATS','PROPHET','THETA','NNETAR'),
-                                 inline = T)
-    }
-  })
+
   
   
   
@@ -449,13 +449,11 @@ server <- function(input, output, session) {
   },ignoreNULL = T)
   
   to_ensemble <- reactive({
-    req(input$evaluation_type == 1)
-    if(length(input$ensemble_algorithms) >= 2){
+    if(input$evaluation_type == 1 && length(input$ensemble_algorithms) >= 2){
       input$ensemble_algorithms
     } else {
       NULL
     }
-    
   })
   
   observeEvent(c(input$i_file,
@@ -480,7 +478,7 @@ server <- function(input, output, session) {
       showModal(Modal(text = ""))
       message('Evaluating')
       forecasts <- list()
-      
+      tryCatch({
       ### . . . . . . . . .. #< c53d563091a835d35f8171cf29dd65b3 ># . . . . . . . . ..
       ### DRIFT                                                                   ####
       
@@ -566,7 +564,8 @@ server <- function(input, output, session) {
         message('Evaluating ARIMA')
         if(input$evaluation_type == 1) {
           forecasts$ARIMA <- list()
-          fit <- try(auto.arima(reactiveVariables$Series_to_Fit,
+          lambda <- if(input$arima_lambda == 'NULL') NULL else 'auto'
+          fit <- try(auto.arima(y = reactiveVariables$Series_to_Fit,
                                 max.p = input$max.p,
                                 max.q = input$max.q,
                                 max.P = input$max.P,
@@ -574,11 +573,13 @@ server <- function(input, output, session) {
                                 max.order = input$max.order,
                                 max.d = input$max.d,
                                 max.D = input$max.D,
-                                ic = input$ic,
+                                ic = input$arima_ic,
+                                lambda = lambda,
                                 allowdrift = input$allowdrift,
                                 allowmean = input$allowmean,
                                 seasonal = input$seasonal,
-                                stepwise = T))
+                                approximation = input$approximation,
+                                stepwise = input$stepwise))
           if (is(fit, 'try-error')) {
             forecasts$ARIMA <- NULL
             showToast(
@@ -600,6 +601,7 @@ server <- function(input, output, session) {
           ### cv
           forecasts$ARIMA <- list()
           forecast_Arima <-function(x,h){ 
+            lambda <- if(input$arima_lambda == 'NULL') NULL else 'auto'
             fit = auto.arima(x,
                              max.p = input$max.p,
                              max.q = input$max.q,
@@ -608,11 +610,13 @@ server <- function(input, output, session) {
                              max.order = input$max.order,
                              max.d = input$max.d,
                              max.D = input$max.D,
-                             ic = input$ic,
+                             ic = input$arima_ic,
+                             lambda = lambda,
                              allowdrift = input$allowdrift,
                              allowmean = input$allowmean,
                              seasonal = input$seasonal,
-                             stepwise = T)
+                             approximation = input$approximation,
+                             stepwise = input$stepwise)
             forecast(fit,h)
           }
           forecastFit <- try(time_series_cv(y = reactiveVariables$TotalSeries,
@@ -650,7 +654,13 @@ server <- function(input, output, session) {
         if(input$evaluation_type == 1) {
           forecasts$ETS <- list()
           model <- paste0(input$errortype,input$trendtype,input$seasontype)
-          fit <- try(ets(reactiveVariables$Series_to_Fit,model=model, allow.multiplicative.trend = input$allow.multiplicative.trend))
+          lambda <- if(input$ets_lambda == 'NULL') NULL else 'auto'
+          fit <- try(ets(reactiveVariables$Series_to_Fit,
+                         model=model, 
+                         ic = input$ets_ic,
+                         opt.crit = input$opt.crit,	
+                         allow.multiplicative.trend = input$allow.multiplicative.trend,
+                         lambda = lambda))
           if (is(fit, 'try-error')) {
             forecasts$ETS <- NULL
             showToast(
@@ -672,7 +682,13 @@ server <- function(input, output, session) {
           model <- paste0(input$errortype,input$trendtype,input$seasontype)
           forecasts$ETS <- list()
           forecast_ETS <-function(x,h){ 
-            fit = ets(x,model=model, allow.multiplicative.trend = input$allow.multiplicative.trend)
+            lambda <- if(input$ets_lambda == 'NULL') NULL else 'auto'
+            fit = ets(x,
+                      model=model, 
+                      ic = input$ets_ic,
+                      opt.crit = input$opt.crit,	
+                      allow.multiplicative.trend = input$allow.multiplicative.trend,
+                      lambda = lambda)
             forecast(fit,h)
           }
           forecastFit <- try(time_series_cv(y = reactiveVariables$TotalSeries,
@@ -930,7 +946,7 @@ server <- function(input, output, session) {
         #                         max.order = input$max.order,
         #                         max.d = input$max.d,
         #                         max.D = input$max.D,
-        #                         ic = input$ic,
+        #                         ic = input$arima_ic,
         #                         allowdrift = input$allowdrift,
         #                         allowmean = input$allowmean,
         #                         seasonal = input$seasonal,
@@ -1042,9 +1058,10 @@ server <- function(input, output, session) {
         message('Evaluating NNETAR')
         if(input$evaluation_type == 1) {
           forecasts$NNETAR <- list()
+          lambda <- if(input$nnetar_lambda == 'NULL') NULL else 'auto'
           fit <- try(nnetar(y = reactiveVariables$Series_to_Fit,
                             P = input$number_of_seasonal_lags,
-                            lamda = ifelse(input$lamda=='NULL',NULL,'auto'), 
+                            lambda  = lambda, 
                             scale.inputs = input$scale.inputs,
                             repeats = input$repeats))
           if (is(fit, 'try-error')) {
@@ -1065,9 +1082,10 @@ server <- function(input, output, session) {
         } else {
           forecasts$NNETAR <- list()
           forecast_NNETAR <-function(x,h){ 
+            lambda <- if(input$nnetar_lambda == 'NULL') NULL else 'auto'
             fit = nnetar(y = x,
                          P = input$number_of_seasonal_lags,
-                         lamda = ifelse(input$lamda=='NULL',NULL,'auto'), 
+                         lambda  = lambda, 
                          scale.inputs = input$scale.inputs,
                          repeats = input$repeats)
             forecast(fit,h)
@@ -1100,9 +1118,10 @@ server <- function(input, output, session) {
         }
         
       }
-      
+
       ### ENSEMPLE                                                                ####
       if( !is.null(to_ensemble()) & input$evaluation_type == 1){
+        message('Evaluating ENSEMBLE')
         forecasts$ENSEMBLE <- list()
         ensemble_list <- list()
         fit_list <- list()
@@ -1120,12 +1139,23 @@ server <- function(input, output, session) {
         forecasts$ENSEMBLE[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, ensemble_dt[, `Point Forecast`])
         forecasts$ENSEMBLE[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, ensemble_dt[, `Point Forecast`])
       }
+      ### CLOSING                                                                 ####
       reactiveVariables$evaluation_done <- T
       reactiveVariables$Forecasts <- forecasts
       removeModal()
       message('Left evaluation')
-    }
-    
+      
+      },
+      error = function(e){removeModal()
+        showToast(type = "error",message = paste0(toString(e)), .options = myToastOptions)
+      },
+      warning = function(w){removeModal()
+        showToast(type = "error",message = paste0(toString(w)), .options = myToastOptions)
+      })
+    } else {
+      showToast(type = "info",message = "Submit the input data before evaluating", .options = myToastOptions)
+   }
+   
   })
   
   
@@ -1288,11 +1318,12 @@ server <- function(input, output, session) {
       showModal(Modal(text = ""))
       message('Forecasting')
       forecasts_ahead <- list()
+      tryCatch({
       Result_dt <- reactiveVariables$Results
       Algorithms <- reactiveVariables$Results[input$results_rows_selected,Algorithm]
       
       #### . . . . . . . . .. #< 2f343b2d516182ef8966454ae20d2a53 ># . . . . . . . . ..
-      #### DRIFT                                                                   ####
+      #### DRIFT                                                                  ####
       
       if("DRIFT" %in% Algorithms) {
         message('Forecasting DRIFT')
@@ -1323,6 +1354,7 @@ server <- function(input, output, session) {
       if("ARIMA" %in% Algorithms) {
         message('Forecasting ARIMA')
         forecasts_ahead$ARIMA <- list()
+        lambda <- if(input$arima_lambda == 'NULL') NULL else 'auto'
         fit <- try(auto.arima(reactiveVariables$TotalSeries,
                               max.p = input$max.p,
                               max.q = input$max.q,
@@ -1331,11 +1363,12 @@ server <- function(input, output, session) {
                               max.order = input$max.order,
                               max.d = input$max.d,
                               max.D = input$max.D,
-                              ic = input$ic,
+                              lambda = lambda,
                               allowdrift = input$allowdrift,
                               allowmean = input$allowmean,
                               seasonal = input$seasonal,
-                              stepwise = T))
+                              approximation = input$approximation,
+                              stepwise = input$stepwise))
         if (is(fit, 'try-error')) {
           forecasts_ahead$ARIMA <- NULL
         } else {
@@ -1352,7 +1385,13 @@ server <- function(input, output, session) {
         message('Forecasting ETS')
         forecasts_ahead$ETS <- list()
         model <- paste0(input$errortype,input$trendtype,input$seasontype)
-        fit <- try(ets(reactiveVariables$TotalSeries,model=model, allow.multiplicative.trend = input$allow.multiplicative.trend))
+        lambda <- if(input$ets_lambda == 'NULL') NULL else 'auto'
+        fit <- try(ets(reactiveVariables$TotalSeries,
+                       model=model, 
+                       ic = input$ets_ic,
+                       opt.crit = input$opt.crit,	
+                       allow.multiplicative.trend = input$allow.multiplicative.trend,
+                       lambda = lambda))
         if (is(fit, 'try-error')) {
           forecasts_ahead$ETS <- NULL
         } else {
@@ -1520,9 +1559,10 @@ server <- function(input, output, session) {
       if("NNETAR" %in% Algorithms){
         message('Forecasting NNETAR')
         forecasts_ahead$NNETAR <- list()
+        lambda <- if(input$nnetar_lambda == 'NULL') NULL else 'auto'
         fit <- try(nnetar(y = reactiveVariables$TotalSeries,
                           P = input$number_of_seasonal_lags,
-                          lamda = ifelse(input$lamda=='NULL',NULL,'auto'), 
+                          lambda = lambda, 
                           scale.inputs = input$scale.inputs,
                           repeats = input$repeats))
         if (is(fit, 'try-error')) {
@@ -1534,6 +1574,10 @@ server <- function(input, output, session) {
         }
         
       }
+      
+      
+### . . . . . . . . .. #< 3de4c0e2af3c3c1fe43a27be80c5154f ># . . . . . . . . ..
+      ### ENSEMBLE                                                                ####
       
       if("ENSEMBLE" %in% Algorithms){
         forecasts_ahead$ENSEMBLE <- list()
@@ -1550,11 +1594,19 @@ server <- function(input, output, session) {
         forecasts_ahead$ENSEMBLE[['Forecast']] <- ensemble_dt
       }
       
-      
+      ### CLOSING                                                                 ####
+      reactiveVariables$Forecasts_ahead <- forecasts_ahead
       removeModal()
       message('Left forecast')
-      reactiveVariables$Forecasts_ahead <- forecasts_ahead
+      },
+      error = function(e){removeModal()
+        showToast(type = "error",message = paste0(toString(e)), .options = myToastOptions)
+      },
+      warning = function(w){removeModal()
+        showToast(type = "error",message = paste0(toString(w)), .options = myToastOptions)
+      })
     }
+  
   })
   
   
