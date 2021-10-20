@@ -92,8 +92,7 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                                        selectInput('ic','Information criterion', choices = c("aicc", "aic", "bic"), selected = "aic"),
                                        checkboxInput('allowdrift','Allow drift',value = T), 
                                        checkboxInput('allowmean','Allow mean',value = T),
-                                       checkboxInput('seasonal','Seasonality',value = T),
-                                       checkboxInput('arima_seasonality_decomposition','Seasonality Decomposition',value = F)
+                                       checkboxInput('seasonal','Seasonality',value = T)
                                        # ,
                                        # conditionalPanel(condition = 'input.frequency > 2 & output.obs >= 2*input.frequency',
                                        #                  checkboxInput('arima_decomposition','Decomposition',value = F))
@@ -116,11 +115,7 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                                                    label =   'Season Type',
                                                    choices = c('None'="N",'Additive'="A", 'multiplicative'="M", 'Automatically selected'= "Z"),
                                                    selected = 'Z'),
-                                       checkboxInput('allow.multiplicative.trend', 'Allow multiplicative trend',value = F),
-                                       checkboxInput('ets_seasonality_decomposition','Seasonality Decomposition',value = F)
-                                       # ,
-                                       # conditionalPanel(condition = 'input.frequency > 2 & output.obs >= 2*input.frequency',
-                                       # checkboxInput('ets_decomposition','Decomposition',value = F))
+                                       checkboxInput('allow.multiplicative.trend', 'Always include multiplicative trend as option',value = F)
                                      ),
                                      value=2),
                             tabPanel("TBATS", icon = icon("line-chart"), h4("TBATS"), 
@@ -304,18 +299,11 @@ server <- function(input, output, session) {
   observeEvent(input$submit,{
     myTimeSeries <- as.numeric(reactiveVariables$Series[[input$variable]])
     if(sum(is.na(myTimeSeries)) > 0){
-      # shinyalert::shinyalert(title = "An error occured reading the data. Make sure there are not missing values and the column contains only numbers.", 
-      #            type = "error",
-      #            timer = 3000,
-      #            closeOnEsc = T,
-      #            showConfirmButton = T,
-      #            closeOnClickOutside = T)
       showToast(
         "error", 
         "An error occured reading the data. Make sure there are not missing values and the column contains only numbers.", 
         .options = myToastOptions
       )
-      # shinyjs::info("An error occured reading the data. Make sure there are not missing values and the column contains only numbers.")
     } else {
       if(input$frequency_known == 1 & !is.null(input$frequency)){
         reactiveVariables$TotalSeries <- ts(myTimeSeries[!is.na(myTimeSeries)], frequency = as.numeric(input$frequency))
@@ -358,8 +346,7 @@ server <- function(input, output, session) {
       total_obs <- length(series)
       obs_to_hold_out <- input$holdout#floor((isolate(input$holdout)/100) * total_obs)
       bandPlotEnd <- total_obs - obs_to_hold_out
-      
-      # browser()
+
       highchart()  %>% 
         hc_xAxis(title = list(text = "Observation number"),
                  plotLines = list(list(color = '#ffffff',
@@ -440,19 +427,6 @@ server <- function(input, output, session) {
   ### Enseble selection                                                       ####
   
   output$ensemble_params <- renderUI({
-    # req(input$evaluation_type == 1)
-    # if(length(input$Algorithm) == 2){
-    #   checkboxInput('ensemble','Evaluate Ensemble')
-    # } else if (length(input$Algorithm) > 2){
-    #   tagList(checkboxInput('ensemble','Evaluate Ensemble',value = F),
-    #           selectInput(inputId = 'ensemble_algorithms',
-    #                       label = 'Pick Algorithms to ensemble',
-    #                       choices = input$Algorithm,
-    #                       multiple = T))
-    # } else {
-    #   NULL
-    # }
-    
     req(input$evaluation_type == 1)
     if(length(input$Algorithm) >= 2){
       selectInput(inputId = 'ensemble_algorithms',
@@ -464,7 +438,6 @@ server <- function(input, output, session) {
   
   
   observeEvent(input$ensemble_algorithms, {
-    
     if (length(input$ensemble_algorithms) < 2) {
       showFeedbackWarning(
         inputId = "ensemble_algorithms",
@@ -473,25 +446,10 @@ server <- function(input, output, session) {
     } else {
       hideFeedback("ensemble_algorithms")
     }
-    
   },ignoreNULL = T)
   
   to_ensemble <- reactive({
     req(input$evaluation_type == 1)
-    # req(input$ensemble)
-    # if(length(input$Algorithm) == 2){
-    #   input$Algorithm
-    # } else if(length(input$Algorithm) > 2){
-    #   if(length(input$ensemble_algorithms) == 0){
-    #     NULL
-    #   } else if(length(input$ensemble_algorithms) == 1){
-    #     NULL
-    #   } else {
-    #     input$ensemble_algorithms
-    #   }
-    # } else {
-    #   NULL
-    # }
     if(length(input$ensemble_algorithms) >= 2){
       input$ensemble_algorithms
     } else {
@@ -637,51 +595,7 @@ server <- function(input, output, session) {
             forecasts$ARIMA[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
             forecasts$ARIMA[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
           }
-          
-          if(input$arima_seasonality_decomposition == T & (frequency(reactiveVariables$Series_to_Fit) >= 2 & length(reactiveVariables$Series_to_Fit)>2*frequency(reactiveVariables$Series_to_Fit))){
-            forecasts$ARIMA_seasonality_decomposition <- list()
-            decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
-            seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
-            seasonaly_adjusted_to_Fit <- head(seasonaly_adjusted, length(reactiveVariables$Series_to_Fit))
-            seasonal_to_add <- tail(decomposed_ts$time.series[,'seasonal'], length(reactiveVariables$Series_to_Evaluate))
-            fit <- try(auto.arima(seasonaly_adjusted_to_Fit,
-                                  max.p = input$max.p,
-                                  max.q = input$max.q,
-                                  max.P = input$max.P,
-                                  max.Q = input$max.Q,
-                                  max.order = input$max.order,
-                                  max.d = input$max.d,
-                                  max.D = input$max.D,
-                                  ic = input$ic,
-                                  allowdrift = input$allowdrift,
-                                  allowmean = input$allowmean,
-                                  seasonal = input$seasonal,
-                                  stepwise = T))
-            if (is(fit, 'try-error')) {
-              showToast(
-                "error", 
-                "An error occured evaluating optimal ARIMA with seasonality adjustment model.", 
-                .options = myToastOptions
-              )
-              forecasts$ARIMA_seasonality_decomposition <- NULL
-            } else {
-              forecastFit <- forecast(fit, length(reactiveVariables$Series_to_Evaluate))
-              forecastFit <- forecastFit$mean + seasonal_to_add
-              forecastFit_dt <- as.data.table(forecastFit)
-              names(forecastFit_dt) <- 'Point Forecast'
-              forecasts$ARIMA_seasonality_decomposition[['Fit']] <- fit
-              forecasts$ARIMA_seasonality_decomposition[['Forecast']] <- forecastFit_dt[, `Point Forecast`]
-              forecasts$ARIMA_seasonality_decomposition[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-              forecasts$ARIMA_seasonality_decomposition[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-              forecasts$ARIMA_seasonality_decomposition[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-            }
-          }else{
-            showToast(
-              "warning", 
-              "The estimated frequency of the time-series is less than 2.", 
-              .options = myToastOptions
-            )
-          }
+
         }else{
           ### cv
           forecasts$ARIMA <- list()
@@ -725,43 +639,6 @@ server <- function(input, output, session) {
               forecasts$ARIMA[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
             }
           }
-          
-          if(input$arima_seasonality_decomposition == T & (frequency(reactiveVariables$TotalSeries) >= 2 & length(reactiveVariables$TotalSeries)>2*frequency(reactiveVariables$TotalSeries))){
-            forecasts$ARIMA_seasonality_decomposition <- list()
-            decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
-            seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
-            forecastFit <- try(time_series_cv(y = seasonaly_adjusted,
-                                              forecastfunction = forecast_Arima,
-                                              h = input$horizon,
-                                              window = 5,
-                                              initial = floor(length(seasonaly_adjusted)/2)) )
-            if (is(forecastFit, 'try-error')) {
-              forecasts$ARIMA_seasonality_decomposition <- NULL
-              showToast(
-                "error", 
-                "An error occured evaluating optimal ARIMA  with seasonality adjustment model", 
-                .options = myToastOptions
-              )
-            } else {
-              if(input$horizon > 1){
-                forecastFit_dt <- as.data.table(forecastFit)
-                forecasts$ARIMA_seasonality_decomposition[['MAE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})]
-                forecasts$ARIMA_seasonality_decomposition[['RMSE']]  <- forecastFit_dt[,lapply(.SD, function(x){ sqrt(mean(x^2, na.rm=TRUE))})]
-                forecasts$ARIMA_seasonality_decomposition[['MAPE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x/reactiveVariables$TotalSeries), na.rm = T)})]
-              } else {
-                forecasts$ARIMA_seasonality_decomposition[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
-                forecasts$ARIMA_seasonality_decomposition[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
-                forecasts$ARIMA_seasonality_decomposition[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
-              }
-            }
-          }else{
-            showToast(
-              "warning", 
-              "The estimated frequency of the time-series is less than 2.", 
-              .options = myToastOptions
-            )
-          }
-          
         }    
       }
       
@@ -789,39 +666,6 @@ server <- function(input, output, session) {
             forecasts$ETS[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
             forecasts$ETS[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
             forecasts$ETS[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-          }
-          
-          if(input$arima_seasonality_decomposition == T  & (frequency(reactiveVariables$Series_to_Fit) >= 2 & length(reactiveVariables$Series_to_Fit)>2*frequency(reactiveVariables$Series_to_Fit))){
-            forecasts$ETS_seasonality_decomposition <- list()
-            decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
-            seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
-            seasonaly_adjusted_to_Fit <- head(seasonaly_adjusted, length(reactiveVariables$Series_to_Fit))
-            seasonal_to_add <- tail(decomposed_ts$time.series[,'seasonal'], length(reactiveVariables$Series_to_Evaluate))
-            fit <- try(ets(seasonaly_adjusted_to_Fit,model=model, allow.multiplicative.trend = input$allow.multiplicative.trend))
-            if (is(fit, 'try-error')) {
-              forecasts$ETS_seasonality_decomposition <- NULL
-              showToast(
-                "error", 
-                "An error occured evaluating optimal ETS with seasonality adjustment model", 
-                .options = myToastOptions
-              )
-            } else {
-              forecastFit <- forecast(fit, length(reactiveVariables$Series_to_Evaluate))
-              forecastFit <- forecastFit$mean + seasonal_to_add
-              forecastFit_dt <- as.data.table(forecastFit)
-              names(forecastFit_dt) <- 'Point Forecast'
-              forecasts$ETS_seasonality_decomposition[['Fit']] <- fit
-              forecasts$ETS_seasonality_decomposition[['Forecast']] <- forecastFit_dt[, `Point Forecast`]
-              forecasts$ETS_seasonality_decomposition[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-              forecasts$ETS_seasonality_decomposition[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-              forecasts$ETS_seasonality_decomposition[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-            }
-          }else{
-            showToast(
-              "warning", 
-              "The estimated frequency of the time-series is less than 2.", 
-              .options = myToastOptions
-            )
           }
         } else {
           ### cv
@@ -854,42 +698,6 @@ server <- function(input, output, session) {
               forecasts$ETS[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
               forecasts$ETS[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
             }
-          }
-          
-          if(input$ets_seasonality_decomposition == T & (frequency(reactiveVariables$TotalSeries) >= 2 & length(reactiveVariables$TotalSeries)>2*frequency(reactiveVariables$TotalSeries))){
-            forecasts$ETS_seasonality_decomposition <- list()
-            decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
-            seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
-            forecastFit <- try(time_series_cv(y = seasonaly_adjusted,
-                                              forecastfunction = forecast_ETS,
-                                              h = input$horizon,
-                                              window = 5,
-                                              initial = floor(length(seasonaly_adjusted)/2)) )
-            if (is(forecastFit, 'try-error')) {
-              forecasts$ETS_seasonality_decomposition <- NULL
-              showToast(
-                "error", 
-                "An error occured evaluating optimal ETS with seasonality adjustment model", 
-                .options = myToastOptions
-              )
-            } else {
-              if(input$horizon > 1){
-                forecastFit_dt <- as.data.table(forecastFit)
-                forecasts$ETS_seasonality_decomposition[['MAE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})]
-                forecasts$ETS_seasonality_decomposition[['RMSE']]  <- forecastFit_dt[,lapply(.SD, function(x){ sqrt(mean(x^2, na.rm=TRUE))})]
-                forecasts$ETS_seasonality_decomposition[['MAPE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x/reactiveVariables$TotalSeries), na.rm = T)})]
-              } else {
-                forecasts$ETS_seasonality_decomposition[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
-                forecasts$ETS_seasonality_decomposition[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
-                forecasts$ETS_seasonality_decomposition[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
-              }
-            }
-          } else{
-            showToast(
-              "warning", 
-              "The estimated frequency of the time-series is less than 2.", 
-              .options = myToastOptions
-            )
           }
         }
       } 
@@ -1166,7 +974,6 @@ server <- function(input, output, session) {
               ss <- TRUE
             }
           }
-          # browser()
           switch(model,
                  'Dynamic Optimised Theta Model' = dotm(y=y, opt.method=opt.method, s=ss, h=h), 
                  'Dynamic Standard Theta Model' = dstm(y=y, opt.method=opt.method, s=ss, h=h), 
@@ -1229,7 +1036,7 @@ server <- function(input, output, session) {
       
       
 ### . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ..
-### NNETAR                                                                  ####
+      ### NNETAR                                                                  ####
       
       if("NNETAR" %in% input$Algorithm){
         message('Evaluating NNETAR')
@@ -1295,7 +1102,6 @@ server <- function(input, output, session) {
       }
       
       ### ENSEMPLE                                                                ####
-      #!is.null(input$ensemble)&& input$ensemble &&
       if( !is.null(to_ensemble()) & input$evaluation_type == 1){
         forecasts$ENSEMBLE <- list()
         ensemble_list <- list()
@@ -1314,7 +1120,6 @@ server <- function(input, output, session) {
         forecasts$ENSEMBLE[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, ensemble_dt[, `Point Forecast`])
         forecasts$ENSEMBLE[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, ensemble_dt[, `Point Forecast`])
       }
-      
       reactiveVariables$evaluation_done <- T
       reactiveVariables$Forecasts <- forecasts
       removeModal()
@@ -1346,7 +1151,6 @@ server <- function(input, output, session) {
     reactiveVariables$Results <- result_dt
     datatable(result_dt, 
               rownames = FALSE,
-              # fillContainer = TRUE,
               height = paste0(200*nrow(result_dt),'px'),
               options = list(pageLength = 10,
                              width="100%", 
@@ -1358,8 +1162,6 @@ server <- function(input, output, session) {
                                "$(this.api().table().header()).css({'background-color': '#34495e', 'color': '#fff'});",
                                "}"
                              )))
-    # %>% 
-    #   formatStyle(names(result_dt), backgroundColor = "#34495e", color ='#bfa423')
   })
   
   output$dt_row_selector <- renderUI({
@@ -1396,11 +1198,7 @@ server <- function(input, output, session) {
     req(reactiveVariables$evaluation_done)
     final_results <- reactiveVariables$Forecasts
     req(length(final_results) >= 1)
-    # div(
-    #   align = 'left',
-    #   class = "container",
     shiny::uiOutput("dynamic_tabs2")
-    # )
   })
   
   output$dynamic_tabs <- shiny::renderUI({
@@ -1469,50 +1267,6 @@ server <- function(input, output, session) {
       
       
     })
-    # seq_along(chart_lines) %>%
-    #   purrr::map(~ shiny::tabPanel(
-    #                  title = names(chart_lines[.x]),
-    #                  div(
-    #                    class = "panel",
-    #                    div(
-    #                      class = "panel-header",
-    #                      tags$h3(names(chart_lines[.x]))
-    #                    ),
-    #                    div(
-    #                      class = "panel-body",
-    #                     
-    #                      highchart()  %>% 
-    #                        hc_xAxis(
-    #                          labels = list(style = list(color ='#fff')))%>%
-    #                        hc_yAxis(title = list(text = x),
-    #                                 allowDecimals =F,
-    #                                 labels = list(style = list(color ='#fff'))) %>%
-    #                        hc_tooltip(useHTML= T,
-    #                                   followPointer= T,
-    #                                   shared = T,
-    #                                   padding = 2,
-    #                                   animation= T,
-    #                                   table = F) %>%
-    #                        hc_add_series(dt, type = "line", name = "Forecast" ,
-    #                                      hcaes(x = N, y = "Forecast"),
-    #                                      tooltip = list(pointFormat = "<b > Value :</b> {point.y:.0f} ")) %>%
-    #                        hc_add_series(dt, type = "line", name = "Series",
-    #                                      hcaes(x = N, y = "Series"),
-    #                                      tooltip = list(pointFormat = "<b > Value :</b> {point.y:.0f} ")) %>%
-    #                        hc_chart(zoomType = "xy") %>% 
-    #                        hc_add_theme(hc_theme_flatdark())
-    #                      
-    #                      
-    #                    )
-    #                  )
-    #                )
-    #   ) ->gap
-    
-    # gap <- lapply(rv$start, function(x){
-    #   hchart(cars$speed)
-    # })
-    
-    
     do.call(what = shiny::tabsetPanel, 
             args = gap %>% append(list(type = "tabs", id   = "evaluation_charts")))
     
@@ -1524,17 +1278,11 @@ server <- function(input, output, session) {
   observeEvent(input$forecast_ahead,{
     req(reactiveVariables$check == T)
     if(length(input$results_rows_selected) == 0){
-      # shinyalert::shinyalert(text = 'Select a row from the results table', type = 'info',
-      #            timer = 3000,
-      #            closeOnEsc = T,
-      #            showConfirmButton = T,
-      #            closeOnClickOutside = T)
       showToast(
         "info", 
         'Select a row from the results table', 
         .options = myToastOptions
       )
-      # shinyjs::info('Select a row from the results table')
     } else {
       
       showModal(Modal(text = ""))
@@ -1595,38 +1343,6 @@ server <- function(input, output, session) {
           forecastFit_dt <- as.data.table(forecastFit)
           forecasts_ahead$ARIMA[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
         }
-        
-        if(input$arima_seasonality_decomposition == T & (frequency(reactiveVariables$TotalSeries) >= 2 & length(reactiveVariables$TotalSeries)>2*frequency(reactiveVariables$TotalSeries))){
-          forecasts_ahead$ARIMA_seasonality_decomposition <- list()
-          decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
-          seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
-          seasonaly_adjusted_to_Fit <- head(seasonaly_adjusted, length(reactiveVariables$TotalSeries))
-          seasonal_to_add <- tail(decomposed_ts$time.series[,'seasonal'], input$forecast_horizon)
-          fit <- try(auto.arima(seasonaly_adjusted_to_Fit,
-                                max.p = input$max.p,
-                                max.q = input$max.q,
-                                max.P = input$max.P,
-                                max.Q = input$max.Q,
-                                max.order = input$max.order,
-                                max.d = input$max.d,
-                                max.D = input$max.D,
-                                ic = input$ic,
-                                allowdrift = input$allowdrift,
-                                allowmean = input$allowmean,
-                                seasonal = input$seasonal,
-                                stepwise = T))
-          if (is(fit, 'try-error')) {
-            forecasts_ahead$ARIMA_seasonality_decomposition <- NULL
-          } else {
-            forecastFit <- forecast(fit, input$forecast_horizon)
-            forecastFit_dt <- as.data.table(forecastFit)
-            forecastFit_dt <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
-            forecastFit_dt[,c('Point Forecast', 'Lo 95' , 'Hi 95') := .(
-              `Point Forecast` + seasonal_to_add, `Lo 95` + seasonal_to_add, `Hi 95` + seasonal_to_add
-            )]
-            forecasts_ahead$ARIMA_seasonality_decomposition[['Forecast']] <- forecastFit_dt
-          }
-        }
       }
       
       ### . . . . . . . . .. #< 044c8add4ad5eb01d51d2e75078f2d8d ># . . . . . . . . ..
@@ -1644,27 +1360,6 @@ server <- function(input, output, session) {
           forecastFit_dt <- as.data.table(forecastFit)
           forecasts_ahead$ETS[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
         }
-        
-        if(input$arima_seasonality_decomposition == T  & (frequency(reactiveVariables$TotalSeries) >= 2 & length(reactiveVariables$TotalSeries)>2*frequency(reactiveVariables$TotalSeries))){
-          forecasts_ahead$ETS_seasonality_decomposition <- list()
-          decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
-          seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
-          seasonaly_adjusted_to_Fit <- head(seasonaly_adjusted, length(reactiveVariables$TotalSeries))
-          seasonal_to_add <- tail(decomposed_ts$time.series[,'seasonal'], input$forecast_horizon)
-          fit <- try(ets(seasonaly_adjusted_to_Fit,model=model, allow.multiplicative.trend = input$allow.multiplicative.trend))
-          if (is(fit, 'try-error')) {
-            forecasts_ahead$ETS_seasonality_decomposition <- NULL
-          } else {
-            forecastFit <- forecast(fit, input$forecast_horizon)
-            forecastFit_dt <- as.data.table(forecastFit)
-            forecastFit_dt <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
-            forecastFit_dt[,c('Point Forecast', 'Lo 95' , 'Hi 95') := .(
-              `Point Forecast` + seasonal_to_add, `Lo 95` + seasonal_to_add, `Hi 95` + seasonal_to_add
-            )]
-            forecasts_ahead$ETS_seasonality_decomposition[['Forecast']] <- forecastFit_dt
-          }
-        }
-        
       } 
       
       ### . . . . . . . . .. #< 76a4e2451752cd2f1b608013513b382d ># . . . . . . . . ..
@@ -1821,7 +1516,7 @@ server <- function(input, output, session) {
       
       
 ### . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ..
-### NNETAR                                                                  ####
+      ### NNETAR                                                                  ####
       if("NNETAR" %in% Algorithms){
         message('Forecasting NNETAR')
         forecasts_ahead$NNETAR <- list()

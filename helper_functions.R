@@ -165,7 +165,6 @@ chunk <- function(x, n, force.number.of.groups = TRUE, len = length(x), groups =
   
   return(g[g.names.ordered])
 }
-
 crossValidationProphetExcludingInitial <- function(dt, horizon, window, initial){
   freq_int <- findfrequency(dt)
   valid_frequency <-  c( 1, 7, 12, 4, 365)
@@ -280,8 +279,6 @@ crossValidationProphet <- function(dt, horizon, window, initial){
   final_results <- dcast(final_results, Metric ~ paste0('h=', horizon), value.var = 'V1')
   return(final_results)
 }
-
-
 time_series_cv <- function (y, forecastfunction, h = 1, window = NULL, xreg = NULL, initial = 0, ...){
   y <- as.ts(y)
   n <- length(y)
@@ -324,22 +321,6 @@ time_series_cv <- function (y, forecastfunction, h = 1, window = NULL, xreg = NU
     return(e)
   }
 }
-
-
-# js <- "
-# $(document).ready(function(){
-#   $('#ensemble_algorithms').on('show.bs.select', function(){
-#     $('a[role=option]').on('click', function(e){
-#       var selections = $('#ensemble_algorithms').val();
-#       if(selections.length === 2 && $(this).hasClass('selected')){
-#         e.stopImmediatePropagation();
-#       };
-#     });
-#   }).on('hide.bs.select', function(){
-#     $('a[role=option]').off('click');
-#   });
-# });"
-
 
 style <- "
 .highcharts-plot-band-label{ color:#ffffff;}
