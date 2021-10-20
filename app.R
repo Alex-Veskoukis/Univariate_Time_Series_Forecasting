@@ -21,186 +21,216 @@ source("helper_functions.R")
 #   UI                                                                      ####
 
 ui <- fluidPage(theme = shinytheme("superhero"),
-tags$style(style),
-useShinyjs(),
-useShinyalert(),
-  h2('Time Series Settings'),
-  inputPanel(
-    fileInput("i_file", "Upload your CSV file"),
-    selectInput('variable','Select Series',choices = NULL),
-    awesomeRadio(inputId = "evaluation_type", 
-                 label = "Evaluation type", 
-                 choices = c("Validation set" = 1, 
-                             "Cross Validation" = 2), 
-                 selected = 1),
-    uiOutput('evaluation_type_parameters'),
-    br(),
-    awesomeRadio(inputId = "frequency_known", 
-                 label = "Is frequency known? ", 
-                 choices = c("Yes" = 1, 
-                             "No" = 2), 
-                 selected = 2),
-    uiOutput('frequency_type'),
-    br()),
-    br(),
-    conditionalPanel(condition = "(input.variable.length > 0)",
-                     actionButton('submit', "Submit")),
-    br(),
-    hr(),
-hidden(div(align = 'left',
-           id = 'seriesdiv',
-           highchartOutput('series'))), 
-    br(),
-    hr(),
-    awesomeCheckboxGroup(inputId = "Algorithm", 
-                 label = h2("Select Algorithm to Evaluate"), 
-                 choices = c("NAIVE","DRIFT","ARIMA", "ETS", 'TBATS', 'PROPHET', 'THETA'),
-                 selected = "NAIVE", 
-                 inline = TRUE),
-    uiOutput('ensemble_params'),
-    br(),
-    h3('Algorithms Settings'),
-      tabsetPanel(type="tabs",
-                  
-                  #build forecasting panels
-                  tabPanel("NAIVE", icon = icon("line-chart"), h4("NAIVE"),
-                           br(),
-                           inputPanel(
-                             checkboxInput('seasonal_naive','Seasonal',value = T)
-                           ), 
-                           value=0),
-                  tabPanel("ARIMA", icon = icon("line-chart"), h4("ARIMA"),
-                           br(),
-                           inputPanel(
-                          
-                             numericInput('max.p','max.p',value = 5),
-                             numericInput('max.q','max.q',value = 5),
-                             numericInput('max.P','max.P',value = 2),
-                             numericInput('max.Q','max.Q',value = 2),
-                             numericInput('max.order','max.order',value = 5),
-                             numericInput('max.d','max.d',value = 2),
-                             numericInput('max.D','max.D',value = 1),
-                             selectInput('ic','Information criterion', choices = c("aicc", "aic", "bic"), selected = "aic"),
-                             checkboxInput('allowdrift','Allow drift',value = T), 
-                             checkboxInput('allowmean','Allow mean',value = T),
-                             checkboxInput('seasonal','Seasonality',value = T),
-                             checkboxInput('arima_seasonality_decomposition','Seasonality Decomposition',value = F)
-                             # ,
-                             # conditionalPanel(condition = 'input.frequency > 2 & output.obs >= 2*input.frequency',
-                             #                  checkboxInput('arima_decomposition','Decomposition',value = F))
-                             
-                             ), 
-                           value=1),
-                  tabPanel("ETS", icon = icon("line-chart"), h4("ETS"), 
-                           br(), 
-                           inputPanel(
+                tags$style(style),
+                useShinyjs(),
+                useShinyalert(),
+                h2('Time Series Settings'),
+                inputPanel(
+                  fileInput("i_file", "Upload your CSV file"),
+                  selectInput('variable','Select Series',choices = NULL),
+                  awesomeRadio(inputId = "evaluation_type", 
+                               label = "Evaluation type", 
+                               choices = c("Validation set" = 1, 
+                                           "Cross Validation" = 2), 
+                               selected = 1),
+                  uiOutput('evaluation_type_parameters'),
+                  br(),
+                  awesomeRadio(inputId = "frequency_known", 
+                               label = "Is frequency known? ", 
+                               choices = c("Yes" = 1, 
+                                           "No" = 2), 
+                               selected = 2),
+                  uiOutput('frequency_type'),
+                  br()),
+                br(),
+                conditionalPanel(condition = "(input.variable.length > 0)",
+                                 actionButton('submit', "Submit")),
+                br(),
+                hr(),
+                hidden(div(align = 'left',
+                           id = 'seriesdiv',
+                           highchartOutput('series'))), 
+                br(),
+                hr(),
+                awesomeCheckboxGroup(inputId = "Algorithm", 
+                                     label = h2("Select Algorithm to Evaluate"), 
+                                     choices = c("NAIVE",
+                                                 "DRIFT",
+                                                 "ARIMA",
+                                                 "ETS", 
+                                                 'TBATS',
+                                                 'PROPHET', 
+                                                 'THETA',
+                                                 'NNETAR'),
+                                     selected = "NAIVE", 
+                                     inline = TRUE),
+                uiOutput('ensemble_params'),
+                br(),
+                h3('Algorithms Settings'),
+                tabsetPanel(type="tabs",
                             
-                             selectInput(inputId = 'errortype',
-                                         label = 'Error Type',
-                                         choices = c('Additive'="A", 'multiplicative'="M", 'Automatically selected'= "Z"),
-                                         selected = 'Z'),
-                             selectInput(inputId = 'trendtype',
-                                         label = 'Trend Type',
-                                         choices = c('None'="N",'Additive'="A", 'multiplicative'="M", 'Automatically selected'= "Z"),
-                                         selected = 'Z'),
-                             selectInput(inputId = 'seasontype',
-                                         label =   'Season Type',
-                                         choices = c('None'="N",'Additive'="A", 'multiplicative'="M", 'Automatically selected'= "Z"),
-                                         selected = 'Z'),
-                             checkboxInput('allow.multiplicative.trend', 'Allow multiplicative trend',value = F),
-                             checkboxInput('ets_seasonality_decomposition','Seasonality Decomposition',value = F)
-                             # ,
-                             # conditionalPanel(condition = 'input.frequency > 2 & output.obs >= 2*input.frequency',
-                             # checkboxInput('ets_decomposition','Decomposition',value = F))
-                             ),
-                           value=2),
-                  tabPanel("TBATS", icon = icon("line-chart"), h4("TBATS"), 
-                           br(), 
-                           inputPanel(
-                             checkboxInput('use.arma.errors','Use ARMA errors',value = T)),
-                           value=3),
-                  tabPanel("PROPHET", icon = icon("line-chart"), h4("PROPHET"), 
-                           br(), 
-                           inputPanel(
-                             selectInput(label = 'Growth', inputId = 'growth', choices = c( 'linear', 'flat'),selected = "linear"),
-                             selectInput(label = 'Seasonality mode', inputId = 'seasonality.mode', choices = c('additive', 'multiplicative'),selected = "additive"),
-                             selectInput(label = 'Yearly seasonality', inputId = 'yearly.seasonality', choices = c('auto', TRUE, FALSE),selected = "auto"),
-                             selectInput(label = 'Weekly seasonality', inputId = 'weekly.seasonality', choices = c('auto', TRUE, FALSE),selected = "auto"),
-                             selectInput(label = 'Daily seasonality', inputId = 'daily.seasonality', choices = c('auto', TRUE, FALSE),selected = "auto"),
-                             numericInput(inputId = 'n.changepoints', label = 'Number of changepoints', value = 25, min = 0, max = 100),
-                             numericInput(inputId = 'changepoint.range', label = 'Changepoint range', value = 0.8, min = 0.1, max = 1)),
-                           value=4),
-                  
-                  tabPanel("THETA", icon = icon("line-chart"), h4("THETA"), 
-                           br(), 
-                           inputPanel(
-                             selectInput(inputId = 'theta.model',
-                                         label = 'Select model',
-                                         choices = c('Dynamic Optimised Theta Model', 
-                                                     'Dynamic Standard Theta Model', 
-                                                     'Optimised Theta Model',
-                                                     'Standard Theta Model',
-                                                     'Standard Theta Method (STheta)'),
-                                         selected = 'Dynamic Optimised Theta Model'),
-                             selectInput(inputId = 's', 
-                                         label = 'Seasonality', 
-                                         choices = c('Multiplicative' = 'T', 'Additive'='additive', 'Unknown'='NULL'),
-                                         selected = 'NULL'),
-                             conditionalPanel(condition = "input.theta.model != 'Standard Theta Method (STheta)'",
-                                              selectInput(label = 'Optimization Method', inputId = 'opt.method', choices = c('Nelder-Mead', 'L-BFGS-B', 'SANN'),selected = 'Nelder-Mead'))
-                            ),
-                           value=5),
-                  # tabPanel("GARCH", icon = icon("line-chart"), h4("GARCH"), 
-                  #          br(), 
-                  #          inputPanel(
-                  #            column(12, h4('Variance model'),
-                  #                   selectInput(inputId = 'model', label = 'Model', choices = c( "sGARCH", "fGARCH", "eGARCH", "gjrGARCH", "apARCH" , "iGARCH" , "csGARCH"),selected = "sGARCH"),
-                  #                   numericInput('grach_variance_p','AR order',value = 1, min=0 , max = 10,step=1),
-                  #                   numericInput('grach_variance_q','MA order',value = 1,min=0 , max = 10,step=1),
-                  #                   selectInput(inputId = 'submodel', label = 'Submodel', choices = c( "GARCH", "TGARCH", "AVGARCH", "NGARCH", "NAGARCH", "APARCH","GJRGARCH" , "ALLGARCH"),selected = "GARCH")
-                  #                   ),
-                  #            column(12,h4('Mean model'),
-                  #                   numericInput('grach_mean_p','AR order',value = 1,min=0 , max = 10,step=1),
-                  #                   numericInput('grach_mean_q','MA order',value = 1, min=0 ,max = 10,step=1),
-                  #                   checkboxInput('include.mean', 'Include mean', value = ),
-                  #                   checkboxInput('archm', 'include ARCH volatility in the mean regression', value = ),
-                  #                   selectInput('archpow', 'Use st.deviation or variance?', choices = c('std'=1,'Variance'=2)),
-                  #                   checkboxInput('arfima', 'Use fractional differencing in the ARMA regression'),
-                  #                   ),
-                  #            column(12,selectInput(inputId = 'distribution.model', 
-                  #                                 label = h4('Distribution model'), 
-                  #                                 choices = c('student-t' ="std" ,
-                  #                                             'skew-student'="sstd" ,
-                  #                                             'generalized error distribution'="ged",
-                  #                                 'skew-generalized error distribution'="sged",
-                  #                                 'the normal inverse gaussian distribution'="nig" ,
-                  #                                 'Generalized Hyperbolic'= "ghyp" , 
-                  #                                 "Johnson's SU" = "jsu"),
-                  #                                 selected = "std")),
-                  #            column(12,
-                  #            selectInput(inputId = 'solver', label = h4('Select solver'),
-                  #                        choices = c( "nlminb", "solnp", "lbfgs", "gosolnp", "nloptr" , "hybrid"),
-                  #                        selected = "solnp"))),
-                  #          
-                  #          
-                  #          value=4),
-                  id = "timeSeriesTabs"),
-    br(),
-    br(),
-    actionButton('evaluate','Evaluate'),
-    br(),
-    br(),
-    dataTableOutput('results'),
-    uiOutput('dt_row_selector'),
-    br(),
-    # div(
-    #   class = "container",
-      shiny::uiOutput("dynamic_tabs"),
-# ),
-br(),
-br(),
-uiOutput('forecast_widget_container'),
-uiOutput('forecast_tabs_container')
+                            #build forecasting panels
+                            tabPanel("NAIVE", icon = icon("line-chart"), h4("NAIVE"),
+                                     br(),
+                                     inputPanel(
+                                       checkboxInput('seasonal_naive','Seasonal',value = T)
+                                     ), 
+                                     value=0),
+                            tabPanel("ARIMA", icon = icon("line-chart"), h4("ARIMA"),
+                                     br(),
+                                     inputPanel(
+                                       
+                                       numericInput('max.p','max.p',value = 5),
+                                       numericInput('max.q','max.q',value = 5),
+                                       numericInput('max.P','max.P',value = 2),
+                                       numericInput('max.Q','max.Q',value = 2),
+                                       numericInput('max.order','max.order',value = 5),
+                                       numericInput('max.d','max.d',value = 2),
+                                       numericInput('max.D','max.D',value = 1),
+                                       selectInput('ic','Information criterion', choices = c("aicc", "aic", "bic"), selected = "aic"),
+                                       checkboxInput('allowdrift','Allow drift',value = T), 
+                                       checkboxInput('allowmean','Allow mean',value = T),
+                                       checkboxInput('seasonal','Seasonality',value = T),
+                                       checkboxInput('arima_seasonality_decomposition','Seasonality Decomposition',value = F)
+                                       # ,
+                                       # conditionalPanel(condition = 'input.frequency > 2 & output.obs >= 2*input.frequency',
+                                       #                  checkboxInput('arima_decomposition','Decomposition',value = F))
+                                       
+                                     ), 
+                                     value=1),
+                            tabPanel("ETS", icon = icon("line-chart"), h4("ETS"), 
+                                     br(), 
+                                     inputPanel(
+                                       
+                                       selectInput(inputId = 'errortype',
+                                                   label = 'Error Type',
+                                                   choices = c('Additive'="A", 'multiplicative'="M", 'Automatically selected'= "Z"),
+                                                   selected = 'Z'),
+                                       selectInput(inputId = 'trendtype',
+                                                   label = 'Trend Type',
+                                                   choices = c('None'="N",'Additive'="A", 'multiplicative'="M", 'Automatically selected'= "Z"),
+                                                   selected = 'Z'),
+                                       selectInput(inputId = 'seasontype',
+                                                   label =   'Season Type',
+                                                   choices = c('None'="N",'Additive'="A", 'multiplicative'="M", 'Automatically selected'= "Z"),
+                                                   selected = 'Z'),
+                                       checkboxInput('allow.multiplicative.trend', 'Allow multiplicative trend',value = F),
+                                       checkboxInput('ets_seasonality_decomposition','Seasonality Decomposition',value = F)
+                                       # ,
+                                       # conditionalPanel(condition = 'input.frequency > 2 & output.obs >= 2*input.frequency',
+                                       # checkboxInput('ets_decomposition','Decomposition',value = F))
+                                     ),
+                                     value=2),
+                            tabPanel("TBATS", icon = icon("line-chart"), h4("TBATS"), 
+                                     br(), 
+                                     inputPanel(
+                                       checkboxInput('use.arma.errors','Use ARMA errors',value = T)),
+                                     value=3),
+                            tabPanel("PROPHET", icon = icon("line-chart"), h4("PROPHET"), 
+                                     br(), 
+                                     inputPanel(
+                                       selectInput(label = 'Growth', inputId = 'growth', choices = c( 'linear', 'flat'),selected = "linear"),
+                                       selectInput(label = 'Seasonality mode', inputId = 'seasonality.mode', choices = c('additive', 'multiplicative'),selected = "additive"),
+                                       selectInput(label = 'Yearly seasonality', inputId = 'yearly.seasonality', choices = c('auto', TRUE, FALSE),selected = "auto"),
+                                       selectInput(label = 'Weekly seasonality', inputId = 'weekly.seasonality', choices = c('auto', TRUE, FALSE),selected = "auto"),
+                                       selectInput(label = 'Daily seasonality', inputId = 'daily.seasonality', choices = c('auto', TRUE, FALSE),selected = "auto"),
+                                       numericInput(inputId = 'n.changepoints', label = 'Number of changepoints', value = 25, min = 0, max = 100),
+                                       numericInput(inputId = 'changepoint.range', label = 'Changepoint range', value = 0.8, min = 0.1, max = 1)),
+                                     value=4),
+                            
+                            tabPanel("THETA", icon = icon("line-chart"), h4("THETA"), 
+                                     br(), 
+                                     inputPanel(
+                                       selectInput(inputId = 'theta.model',
+                                                   label = 'Select model',
+                                                   choices = c('Dynamic Optimised Theta Model', 
+                                                               'Dynamic Standard Theta Model', 
+                                                               'Optimised Theta Model',
+                                                               'Standard Theta Model',
+                                                               'Standard Theta Method (STheta)'),
+                                                   selected = 'Dynamic Optimised Theta Model'),
+                                       selectInput(inputId = 's', 
+                                                   label = 'Seasonality', 
+                                                   choices = c('Multiplicative' = 'T', 'Additive'='additive', 'Unknown'='NULL'),
+                                                   selected = 'NULL'),
+                                       conditionalPanel(condition = "input.theta.model != 'Standard Theta Method (STheta)'",
+                                                        selectInput(label = 'Optimization Method', inputId = 'opt.method', choices = c('Nelder-Mead', 'L-BFGS-B', 'SANN'),selected = 'Nelder-Mead'))
+                                     ),
+                                     value=5),
+                            
+                            tabPanel("NNETAR", icon = icon("line-chart"), h4("NNETAR"), 
+                                     br(), 
+                                     inputPanel(
+                                       numericInput(inputId = 'number_of_seasonal_lags',
+                                                    label = 'Number of seasonal lags',
+                                                    value = 1,
+                                                    max = 30,
+                                                    min = 1,
+                                                    step = 1),
+                                       numericInput(inputId = 'repeats',
+                                                    label = 'Repeats',
+                                                    value = 20,
+                                                    max = 100,
+                                                    min = 1,
+                                                    step = 1),
+                                       selectInput(inputId = 'lamda', 
+                                                   label = 'Lamda transformation', 
+                                                   choices = c('Auto' = 'auto',  'No transformation'='NULL'),
+                                                   selected = 'auto'),
+                                       checkboxInput(inputId = 'scale.inputs','Scale inputs',value = F)
+                                     ),
+                                     value=6),
+                            # tabPanel("GARCH", icon = icon("line-chart"), h4("GARCH"), 
+                            #          br(), 
+                            #          inputPanel(
+                            #            column(12, h4('Variance model'),
+                            #                   selectInput(inputId = 'model', label = 'Model', choices = c( "sGARCH", "fGARCH", "eGARCH", "gjrGARCH", "apARCH" , "iGARCH" , "csGARCH"),selected = "sGARCH"),
+                            #                   numericInput('grach_variance_p','AR order',value = 1, min=0 , max = 10,step=1),
+                            #                   numericInput('grach_variance_q','MA order',value = 1,min=0 , max = 10,step=1),
+                            #                   selectInput(inputId = 'submodel', label = 'Submodel', choices = c( "GARCH", "TGARCH", "AVGARCH", "NGARCH", "NAGARCH", "APARCH","GJRGARCH" , "ALLGARCH"),selected = "GARCH")
+                            #                   ),
+                            #            column(12,h4('Mean model'),
+                            #                   numericInput('grach_mean_p','AR order',value = 1,min=0 , max = 10,step=1),
+                            #                   numericInput('grach_mean_q','MA order',value = 1, min=0 ,max = 10,step=1),
+                            #                   checkboxInput('include.mean', 'Include mean', value = ),
+                            #                   checkboxInput('archm', 'include ARCH volatility in the mean regression', value = ),
+                            #                   selectInput('archpow', 'Use st.deviation or variance?', choices = c('std'=1,'Variance'=2)),
+                            #                   checkboxInput('arfima', 'Use fractional differencing in the ARMA regression'),
+                            #                   ),
+                            #            column(12,selectInput(inputId = 'distribution.model', 
+                            #                                 label = h4('Distribution model'), 
+                            #                                 choices = c('student-t' ="std" ,
+                            #                                             'skew-student'="sstd" ,
+                            #                                             'generalized error distribution'="ged",
+                            #                                 'skew-generalized error distribution'="sged",
+                            #                                 'the normal inverse gaussian distribution'="nig" ,
+                            #                                 'Generalized Hyperbolic'= "ghyp" , 
+                            #                                 "Johnson's SU" = "jsu"),
+                            #                                 selected = "std")),
+                            #            column(12,
+                            #            selectInput(inputId = 'solver', label = h4('Select solver'),
+                            #                        choices = c( "nlminb", "solnp", "lbfgs", "gosolnp", "nloptr" , "hybrid"),
+                            #                        selected = "solnp"))),
+                            #          
+                            #          
+                            #          value=4),
+                            id = "timeSeriesTabs"),
+                br(),
+                br(),
+                actionButton('evaluate','Evaluate'),
+                br(),
+                br(),
+                dataTableOutput('results'),
+                uiOutput('dt_row_selector'),
+                br(),
+                # div(
+                #   class = "container",
+                shiny::uiOutput("dynamic_tabs"),
+                # ),
+                br(),
+                br(),
+                uiOutput('forecast_widget_container'),
+                uiOutput('forecast_tabs_container')
 )
 
 
@@ -216,7 +246,7 @@ uiOutput('forecast_tabs_container')
 
 
 
-                                                                   ####
+####
 #   __________________ #< c80e0aeda84da32ec88df7b57ee4735e ># __________________
 #   SERVER                                                                  ####
 server <- function(input, output, session) {
@@ -266,53 +296,54 @@ server <- function(input, output, session) {
     } 
   })
   
-##  .................. #< 1160059a5e062dc3e74ef06c65f639c0 ># ..................
-##  Time series reading                                                     ####
-
+  ##  .................. #< 1160059a5e062dc3e74ef06c65f639c0 ># ..................
+  ##  Time series reading                                                     ####
+  
   observeEvent(input$submit,{
     myTimeSeries <- as.numeric(reactiveVariables$Series[[input$variable]])
     if(sum(is.na(myTimeSeries)) > 0){
-      shinyalert(title = "An error occured reading the data. Make sure there are not missing values and the column contains only numbers.", 
-                 type = "error",
-                 timer = 3000,
-                 closeOnEsc = T,
-                 showConfirmButton = F,
-                 closeOnClickOutside = T)
+      # shinyalert::shinyalert(title = "An error occured reading the data. Make sure there are not missing values and the column contains only numbers.", 
+      #            type = "error",
+      #            timer = 3000,
+      #            closeOnEsc = T,
+      #            showConfirmButton = T,
+      #            closeOnClickOutside = T)
+      shinyjs::info("An error occured reading the data. Make sure there are not missing values and the column contains only numbers.")
     } else {
-        if(input$frequency_known == 1 & !is.null(input$frequency)){
-          reactiveVariables$TotalSeries <- ts(myTimeSeries[!is.na(myTimeSeries)], frequency = as.numeric(input$frequency))
-        } else {
-          reactiveVariables$TotalSeries <- ts(myTimeSeries[!is.na(myTimeSeries)], 
-                                              frequency = findfrequency(myTimeSeries[!is.na(myTimeSeries)]))
-          
+      if(input$frequency_known == 1 & !is.null(input$frequency)){
+        reactiveVariables$TotalSeries <- ts(myTimeSeries[!is.na(myTimeSeries)], frequency = as.numeric(input$frequency))
+      } else {
+        reactiveVariables$TotalSeries <- ts(myTimeSeries[!is.na(myTimeSeries)], 
+                                            frequency = findfrequency(myTimeSeries[!is.na(myTimeSeries)]))
+        
+      }
+      
+      if(input$evaluation_type == 1){
+        if(!is.null(reactiveVariables$TotalSeries)){
+          total_obs <- length(reactiveVariables$TotalSeries)
+          obs_to_hold_out <- input$holdout#floor((input$holdout/100) * total_obs)
+          reactiveVariables$Series_to_Fit <- head(reactiveVariables$TotalSeries, total_obs - obs_to_hold_out)
+          reactiveVariables$Series_to_Evaluate <- tail(reactiveVariables$TotalSeries, obs_to_hold_out)
+          reactiveVariables$Forecasts <- list()
         }
-          
-        if(input$evaluation_type == 1){
-          if(!is.null(reactiveVariables$TotalSeries)){
-            total_obs <- length(reactiveVariables$TotalSeries)
-            obs_to_hold_out <- input$holdout#floor((input$holdout/100) * total_obs)
-            reactiveVariables$Series_to_Fit <- head(reactiveVariables$TotalSeries, total_obs - obs_to_hold_out)
-            reactiveVariables$Series_to_Evaluate <- tail(reactiveVariables$TotalSeries, obs_to_hold_out)
-            reactiveVariables$Forecasts <- list()
-          }
-        }
-        updateActionButton(session, inputId = 'submit',  icon = icon('check'))
-        reactiveVariables$check <- T
-        reactiveVariables$evaluation_done <- F
+      }
+      updateActionButton(session, inputId = 'submit',  icon = icon('check'))
+      reactiveVariables$check <- T
+      reactiveVariables$evaluation_done <- F
     }
- })
+  })
   
   observeEvent(reactiveVariables$check ,{
-  if(reactiveVariables$check == T){
-    shinyjs::show('seriesdiv')
-  } else {
-    shinyjs::hide('seriesdiv')
-  }
-})
-   
-##  .................. #< d3886288115023d7a08569cc0540baa2 ># ..................
-##  Chart time series                                                       ####
-
+    if(reactiveVariables$check == T){
+      shinyjs::show('seriesdiv')
+    } else {
+      shinyjs::hide('seriesdiv')
+    }
+  })
+  
+  ##  .................. #< d3886288115023d7a08569cc0540baa2 ># ..................
+  ##  Chart time series                                                       ####
+  
   output$series <- renderHighchart({
     req(reactiveVariables$check == T)
     series <- as.vector(reactiveVariables$TotalSeries)
@@ -320,16 +351,16 @@ server <- function(input, output, session) {
       total_obs <- length(series)
       obs_to_hold_out <- input$holdout#floor((isolate(input$holdout)/100) * total_obs)
       bandPlotEnd <- total_obs - obs_to_hold_out
-
+      
       # browser()
       highchart()  %>% 
         hc_xAxis(title = list(text = "Observation number"),
-          plotLines = list(list(color = '#ffffff',
-                                width = 1, 
-                                zIndex = 1.67,
-                                dashStyle =  'Solid',
-                                value = bandPlotEnd)),
-          plotBands=list(list(
+                 plotLines = list(list(color = '#ffffff',
+                                       width = 1, 
+                                       zIndex = 1.67,
+                                       dashStyle =  'Solid',
+                                       value = bandPlotEnd)),
+                 plotBands=list(list(
                    color="#34495e",
                    from= -1,
                    to=bandPlotEnd,
@@ -338,17 +369,17 @@ server <- function(input, output, session) {
                      text="Train Set",
                      align="center"
                    )
-                   ),
-                   list(
-                     color="#34495e",
-                     from= bandPlotEnd,
-                     to=total_obs,
-                     label=list(
-                       style = list(color = '#ffffff'),
-                       text="Test Set",
-                       align="center"
-                     )
-                   )), labels = list(style = list(color ='#ffffff')))%>%
+                 ),
+                 list(
+                   color="#34495e",
+                   from= bandPlotEnd,
+                   to=total_obs,
+                   label=list(
+                     style = list(color = '#ffffff'),
+                     text="Test Set",
+                     align="center"
+                   )
+                 )), labels = list(style = list(color ='#ffffff')))%>%
         hc_yAxis(title = list(text =  input$variable),
                  allowDecimals =F,
                  labels = list(style = list(color ='#ffffff'))) %>%
@@ -359,13 +390,13 @@ server <- function(input, output, session) {
                    animation= T,
                    table = F) %>%
         hc_add_series(series, type = "line",name = input$variable,color = '#619CFF',
-        tooltip = list(pointFormat = "<b > Value :</b> {point.y:.0f} ")) %>%
+                      tooltip = list(pointFormat = "<b > Value :</b> {point.y:.0f} ")) %>%
         hc_chart(zoomType = "xy") %>% 
         hc_add_theme(hc_theme_flatdark())
     } else {
       highchart()  %>% 
         hc_xAxis(title = list(text = "Observation number"),
-          labels = list(style = list(color ='#ffffff')))%>%
+                 labels = list(style = list(color ='#ffffff')))%>%
         hc_yAxis(title = list(text =  input$variable),
                  allowDecimals =F,
                  labels = list(style = list(color ='#ffffff'))) %>%
@@ -386,21 +417,21 @@ server <- function(input, output, session) {
     if(input$evaluation_type == 1){
       updateAwesomeCheckboxGroup(session = session,
                                  inputId = "Algorithm",
-                                 choices = c("NAIVE","DRIFT","ARIMA", "ETS", 'TBATS', 'PROPHET','THETA'),
+                                 choices = c("NAIVE","DRIFT","ARIMA", "ETS", 'TBATS', 'PROPHET','THETA','NNETAR'),
                                  inline = T)
     } else {
       updateAwesomeCheckboxGroup(session = session,
                                  inputId = "Algorithm",
-                                 choices = c("NAIVE","DRIFT","ARIMA", "ETS", 'TBATS','PROPHET','THETA'),
+                                 choices = c("NAIVE","DRIFT","ARIMA", "ETS", 'TBATS','PROPHET','THETA','NNETAR'),
                                  inline = T)
     }
   })
   
   
   
-### . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ..
-### Enseble selection                                                       ####
-
+  ### . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ..
+  ### Enseble selection                                                       ####
+  
   output$ensemble_params <- renderUI({
     req(input$evaluation_type == 1)
     if(length(input$Algorithm) == 2){
@@ -427,7 +458,7 @@ server <- function(input, output, session) {
       } else if(length(input$ensemble_algorithms) == 1){
         NULL
       } else {
-       input$ensemble_algorithms
+        input$ensemble_algorithms
       }
     } else {
       NULL
@@ -441,15 +472,15 @@ server <- function(input, output, session) {
                  input$evaluation_type,
                  input$frequency_known,
                  input$frequency),{
-    updateActionButton(session, inputId = 'submit',  icon = icon(NULL))
-    reactiveVariables$check <- F
-  })
+                   updateActionButton(session, inputId = 'submit',  icon = icon(NULL))
+                   reactiveVariables$check <- F
+                 })
   
   
-
-##  .................. #< e6b0845ddb2be58be6d88276c18d8b7f ># ..................
-##  Evaluate Algorithms                                                     ####
-
+  
+  ##  .................. #< e6b0845ddb2be58be6d88276c18d8b7f ># ..................
+  ##  Evaluate Algorithms                                                     ####
+  
   observeEvent(input$evaluate,{
     req(length(input$Algorithm) > 0)
     if (reactiveVariables$check == T) {
@@ -457,9 +488,9 @@ server <- function(input, output, session) {
       message('Evaluating')
       forecasts <- list()
       
-### . . . . . . . . .. #< c53d563091a835d35f8171cf29dd65b3 ># . . . . . . . . ..
-### DRIFT                                                                   ####
-
+      ### . . . . . . . . .. #< c53d563091a835d35f8171cf29dd65b3 ># . . . . . . . . ..
+      ### DRIFT                                                                   ####
+      
       if("DRIFT" %in% input$Algorithm) {
         message('Evaluating DRIFT')
         if(input$evaluation_type == 1){
@@ -473,10 +504,10 @@ server <- function(input, output, session) {
           forecasts$DRIFT[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
         } else {
           forecastFit <- time_series_cv(y = reactiveVariables$TotalSeries,
-                              forecastfunction = rwf,
-                              h = input$horizon,
-                              window = 5,
-                              initial = floor(length(reactiveVariables$TotalSeries)/2)) 
+                                        forecastfunction = rwf,
+                                        h = input$horizon,
+                                        window = 5,
+                                        initial = floor(length(reactiveVariables$TotalSeries)/2)) 
           if(input$horizon > 1){
             forecastFit_dt <- as.data.table(forecastFit)
             forecasts$DRIFT[['MAE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})]
@@ -490,9 +521,9 @@ server <- function(input, output, session) {
         }
       }
       
-### . . . . . . . . .. #< b1639019df2cce3e8a36505079eed67a ># . . . . . . . . ..
-### NAIVE                                                                   ####
-
+      ### . . . . . . . . .. #< b1639019df2cce3e8a36505079eed67a ># . . . . . . . . ..
+      ### NAIVE                                                                   ####
+      
       if("NAIVE" %in% input$Algorithm) {
         message('Evaluating NAIVE')
         if(input$evaluation_type == 1){
@@ -511,16 +542,16 @@ server <- function(input, output, session) {
         } else{
           if(input$seasonal_naive == T){
             forecastFit <- time_series_cv(y = reactiveVariables$TotalSeries,
-                                forecastfunction = snaive, 
-                                h = input$horizon,
-                                window = 5,
-                                initial = floor(length(reactiveVariables$TotalSeries)/2)) 
+                                          forecastfunction = snaive, 
+                                          h = input$horizon,
+                                          window = 5,
+                                          initial = floor(length(reactiveVariables$TotalSeries)/2)) 
           }else{
             forecastFit <- time_series_cv(y = reactiveVariables$TotalSeries,
-                                forecastfunction = naive, 
-                                h = input$horizon,
-                                window = 5,
-                                initial = floor(length(reactiveVariables$TotalSeries)/2)) 
+                                          forecastfunction = naive, 
+                                          h = input$horizon,
+                                          window = 5,
+                                          initial = floor(length(reactiveVariables$TotalSeries)/2)) 
           }
           if(input$horizon > 1){
             forecastFit_dt <- as.data.table(forecastFit)
@@ -534,77 +565,77 @@ server <- function(input, output, session) {
           }
         }
       }
-
-### . . . . . . . . .. #< b3a6167b3ff6b20c0cbaae7bdce45775 ># . . . . . . . . ..
-### ARIMA                                                                   ####
-
+      
+      ### . . . . . . . . .. #< b3a6167b3ff6b20c0cbaae7bdce45775 ># . . . . . . . . ..
+      ### ARIMA                                                                   ####
+      
       if("ARIMA" %in% input$Algorithm) {
         message('Evaluating ARIMA')
-           if(input$evaluation_type == 1) {
-              forecasts$ARIMA <- list()
-              fit <- try(auto.arima(reactiveVariables$Series_to_Fit,
-                                    max.p = input$max.p,
-                                    max.q = input$max.q,
-                                    max.P = input$max.P,
-                                    max.Q = input$max.Q,
-                                    max.order = input$max.order,
-                                    max.d = input$max.d,
-                                    max.D = input$max.D,
-                                    ic = input$ic,
-                                    allowdrift = input$allowdrift,
-                                    allowmean = input$allowmean,
-                                    seasonal = input$seasonal,
-                                    stepwise = T))
-              if (is(fit, 'try-error')) {
-                forecasts$ARIMA <- NULL
-              } else {
-                forecastFit <- forecast(fit, length(reactiveVariables$Series_to_Evaluate))
-                forecastFit_dt <- as.data.table(forecastFit)
-                forecasts$ARIMA[['Fit']] <- fit
-                forecasts$ARIMA[['Forecast']] <- forecastFit_dt[, `Point Forecast`]
-                forecasts$ARIMA[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-                forecasts$ARIMA[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-                forecasts$ARIMA[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-              }
-    
-            if(input$arima_seasonality_decomposition == T & (frequency(reactiveVariables$Series_to_Fit) >= 2 & length(reactiveVariables$Series_to_Fit)>2*frequency(reactiveVariables$Series_to_Fit))){
-              forecasts$ARIMA_seasonality_decomposition <- list()
-              decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
-              seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
-              seasonaly_adjusted_to_Fit <- head(seasonaly_adjusted, length(reactiveVariables$Series_to_Fit))
-              seasonal_to_add <- tail(decomposed_ts$time.series[,'seasonal'], length(reactiveVariables$Series_to_Evaluate))
-              fit <- try(auto.arima(seasonaly_adjusted_to_Fit,
-                                    max.p = input$max.p,
-                                    max.q = input$max.q,
-                                    max.P = input$max.P,
-                                    max.Q = input$max.Q,
-                                    max.order = input$max.order,
-                                    max.d = input$max.d,
-                                    max.D = input$max.D,
-                                    ic = input$ic,
-                                    allowdrift = input$allowdrift,
-                                    allowmean = input$allowmean,
-                                    seasonal = input$seasonal,
-                                    stepwise = T))
-              if (is(fit, 'try-error')) {
-                forecasts$ARIMA_seasonality_decomposition <- NULL
-              } else {
-                forecastFit <- forecast(fit, length(reactiveVariables$Series_to_Evaluate))
-                forecastFit <- forecastFit$mean + seasonal_to_add
-                forecastFit_dt <- as.data.table(forecastFit)
-                names(forecastFit_dt) <- 'Point Forecast'
-                forecasts$ARIMA_seasonality_decomposition[['Fit']] <- fit
-                forecasts$ARIMA_seasonality_decomposition[['Forecast']] <- forecastFit_dt[, `Point Forecast`]
-                forecasts$ARIMA_seasonality_decomposition[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-                forecasts$ARIMA_seasonality_decomposition[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-                forecasts$ARIMA_seasonality_decomposition[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-              }
+        if(input$evaluation_type == 1) {
+          forecasts$ARIMA <- list()
+          fit <- try(auto.arima(reactiveVariables$Series_to_Fit,
+                                max.p = input$max.p,
+                                max.q = input$max.q,
+                                max.P = input$max.P,
+                                max.Q = input$max.Q,
+                                max.order = input$max.order,
+                                max.d = input$max.d,
+                                max.D = input$max.D,
+                                ic = input$ic,
+                                allowdrift = input$allowdrift,
+                                allowmean = input$allowmean,
+                                seasonal = input$seasonal,
+                                stepwise = T))
+          if (is(fit, 'try-error')) {
+            forecasts$ARIMA <- NULL
+          } else {
+            forecastFit <- forecast(fit, length(reactiveVariables$Series_to_Evaluate))
+            forecastFit_dt <- as.data.table(forecastFit)
+            forecasts$ARIMA[['Fit']] <- fit
+            forecasts$ARIMA[['Forecast']] <- forecastFit_dt[, `Point Forecast`]
+            forecasts$ARIMA[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
+            forecasts$ARIMA[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
+            forecasts$ARIMA[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
+          }
+          
+          if(input$arima_seasonality_decomposition == T & (frequency(reactiveVariables$Series_to_Fit) >= 2 & length(reactiveVariables$Series_to_Fit)>2*frequency(reactiveVariables$Series_to_Fit))){
+            forecasts$ARIMA_seasonality_decomposition <- list()
+            decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
+            seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
+            seasonaly_adjusted_to_Fit <- head(seasonaly_adjusted, length(reactiveVariables$Series_to_Fit))
+            seasonal_to_add <- tail(decomposed_ts$time.series[,'seasonal'], length(reactiveVariables$Series_to_Evaluate))
+            fit <- try(auto.arima(seasonaly_adjusted_to_Fit,
+                                  max.p = input$max.p,
+                                  max.q = input$max.q,
+                                  max.P = input$max.P,
+                                  max.Q = input$max.Q,
+                                  max.order = input$max.order,
+                                  max.d = input$max.d,
+                                  max.D = input$max.D,
+                                  ic = input$ic,
+                                  allowdrift = input$allowdrift,
+                                  allowmean = input$allowmean,
+                                  seasonal = input$seasonal,
+                                  stepwise = T))
+            if (is(fit, 'try-error')) {
+              forecasts$ARIMA_seasonality_decomposition <- NULL
+            } else {
+              forecastFit <- forecast(fit, length(reactiveVariables$Series_to_Evaluate))
+              forecastFit <- forecastFit$mean + seasonal_to_add
+              forecastFit_dt <- as.data.table(forecastFit)
+              names(forecastFit_dt) <- 'Point Forecast'
+              forecasts$ARIMA_seasonality_decomposition[['Fit']] <- fit
+              forecasts$ARIMA_seasonality_decomposition[['Forecast']] <- forecastFit_dt[, `Point Forecast`]
+              forecasts$ARIMA_seasonality_decomposition[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
+              forecasts$ARIMA_seasonality_decomposition[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
+              forecasts$ARIMA_seasonality_decomposition[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
             }
-         }else{
-           ### cv
-           forecasts$ARIMA <- list()
-           forecast_Arima <-function(x,h){ 
-             fit = auto.arima(x,
+          }
+        }else{
+          ### cv
+          forecasts$ARIMA <- list()
+          forecast_Arima <-function(x,h){ 
+            fit = auto.arima(x,
                              max.p = input$max.p,
                              max.q = input$max.q,
                              max.P = input$max.P,
@@ -617,59 +648,59 @@ server <- function(input, output, session) {
                              allowmean = input$allowmean,
                              seasonal = input$seasonal,
                              stepwise = T)
-             forecast(fit,h)
-           }
-           forecastFit <- try(time_series_cv(y = reactiveVariables$TotalSeries,
-                                             forecastfunction = forecast_Arima, 
-                                             h = input$horizon,
-                                             window = 5,
-                                             initial = floor(length(reactiveVariables$TotalSeries)/2)) )
-           if (is(forecastFit, 'try-error')) {
-             forecasts$ARIMA <- NULL
-           } else {
-             if(input$horizon > 1){
-               forecastFit_dt <- as.data.table(forecastFit)
-               forecasts$ARIMA[['MAE']]   <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})]
-               forecasts$ARIMA[['RMSE']]  <- forecastFit_dt[,lapply(.SD, function(x){ sqrt(mean(x^2, na.rm=TRUE))})]
-               forecasts$ARIMA[['MAPE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x/reactiveVariables$TotalSeries), na.rm = T)})]
-             } else {
-               forecasts$ARIMA[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
-               forecasts$ARIMA[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
-               forecasts$ARIMA[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
-             }
-           }
-           
-           if(input$arima_seasonality_decomposition == T & (frequency(reactiveVariables$TotalSeries) >= 2 & length(reactiveVariables$TotalSeries)>2*frequency(reactiveVariables$TotalSeries))){
-             forecasts$ARIMA_seasonality_decomposition <- list()
-             decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
-             seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
-             forecastFit <- try(time_series_cv(y = seasonaly_adjusted,
-                                     forecastfunction = forecast_Arima,
-                                     h = input$horizon,
-                                     window = 5,
-                                     initial = floor(length(seasonaly_adjusted)/2)) )
-             if (is(forecastFit, 'try-error')) {
-               forecasts$ARIMA_seasonality_decomposition <- NULL
-             } else {
-               if(input$horizon > 1){
-                 forecastFit_dt <- as.data.table(forecastFit)
-                 forecasts$ARIMA_seasonality_decomposition[['MAE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})]
-                 forecasts$ARIMA_seasonality_decomposition[['RMSE']]  <- forecastFit_dt[,lapply(.SD, function(x){ sqrt(mean(x^2, na.rm=TRUE))})]
-                 forecasts$ARIMA_seasonality_decomposition[['MAPE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x/reactiveVariables$TotalSeries), na.rm = T)})]
-               } else {
-                 forecasts$ARIMA_seasonality_decomposition[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
-                 forecasts$ARIMA_seasonality_decomposition[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
-                 forecasts$ARIMA_seasonality_decomposition[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
-               }
-             }
-           }
-           
-         }    
+            forecast(fit,h)
+          }
+          forecastFit <- try(time_series_cv(y = reactiveVariables$TotalSeries,
+                                            forecastfunction = forecast_Arima, 
+                                            h = input$horizon,
+                                            window = 5,
+                                            initial = floor(length(reactiveVariables$TotalSeries)/2)) )
+          if (is(forecastFit, 'try-error')) {
+            forecasts$ARIMA <- NULL
+          } else {
+            if(input$horizon > 1){
+              forecastFit_dt <- as.data.table(forecastFit)
+              forecasts$ARIMA[['MAE']]   <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})]
+              forecasts$ARIMA[['RMSE']]  <- forecastFit_dt[,lapply(.SD, function(x){ sqrt(mean(x^2, na.rm=TRUE))})]
+              forecasts$ARIMA[['MAPE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x/reactiveVariables$TotalSeries), na.rm = T)})]
+            } else {
+              forecasts$ARIMA[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
+              forecasts$ARIMA[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
+              forecasts$ARIMA[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
+            }
+          }
+          
+          if(input$arima_seasonality_decomposition == T & (frequency(reactiveVariables$TotalSeries) >= 2 & length(reactiveVariables$TotalSeries)>2*frequency(reactiveVariables$TotalSeries))){
+            forecasts$ARIMA_seasonality_decomposition <- list()
+            decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
+            seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
+            forecastFit <- try(time_series_cv(y = seasonaly_adjusted,
+                                              forecastfunction = forecast_Arima,
+                                              h = input$horizon,
+                                              window = 5,
+                                              initial = floor(length(seasonaly_adjusted)/2)) )
+            if (is(forecastFit, 'try-error')) {
+              forecasts$ARIMA_seasonality_decomposition <- NULL
+            } else {
+              if(input$horizon > 1){
+                forecastFit_dt <- as.data.table(forecastFit)
+                forecasts$ARIMA_seasonality_decomposition[['MAE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})]
+                forecasts$ARIMA_seasonality_decomposition[['RMSE']]  <- forecastFit_dt[,lapply(.SD, function(x){ sqrt(mean(x^2, na.rm=TRUE))})]
+                forecasts$ARIMA_seasonality_decomposition[['MAPE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x/reactiveVariables$TotalSeries), na.rm = T)})]
+              } else {
+                forecasts$ARIMA_seasonality_decomposition[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
+                forecasts$ARIMA_seasonality_decomposition[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
+                forecasts$ARIMA_seasonality_decomposition[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
+              }
+            }
+          }
+          
+        }    
       }
       
-### . . . . . . . . .. #< ee13e415784cd35d52f0e3b05f4bb074 ># . . . . . . . . ..
-### ETS                                                                     ####
-
+      ### . . . . . . . . .. #< ee13e415784cd35d52f0e3b05f4bb074 ># . . . . . . . . ..
+      ### ETS                                                                     ####
+      
       if("ETS" %in% input$Algorithm){
         message('Evaluating ETS')
         if(input$evaluation_type == 1) {
@@ -718,10 +749,10 @@ server <- function(input, output, session) {
             forecast(fit,h)
           }
           forecastFit <- try(time_series_cv(y = reactiveVariables$TotalSeries,
-                                  forecastfunction = forecast_ETS,
-                                  h = input$horizon,
-                                  window = 5,
-                                  initial = floor(length(reactiveVariables$TotalSeries)/2)) )
+                                            forecastfunction = forecast_ETS,
+                                            h = input$horizon,
+                                            window = 5,
+                                            initial = floor(length(reactiveVariables$TotalSeries)/2)) )
           if (is(forecastFit, 'try-error')) {
             forecasts$ETS <- NULL
           } else {
@@ -742,10 +773,10 @@ server <- function(input, output, session) {
             decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
             seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
             forecastFit <- try(time_series_cv(y = seasonaly_adjusted,
-                                    forecastfunction = forecast_ETS,
-                                    h = input$horizon,
-                                    window = 5,
-                                    initial = floor(length(seasonaly_adjusted)/2)) )
+                                              forecastfunction = forecast_ETS,
+                                              h = input$horizon,
+                                              window = 5,
+                                              initial = floor(length(seasonaly_adjusted)/2)) )
             if (is(forecastFit, 'try-error')) {
               forecasts$ETS_seasonality_decomposition <- NULL
             } else {
@@ -764,9 +795,9 @@ server <- function(input, output, session) {
         }
       } 
       
-### . . . . . . . . .. #< 5105bd2a0698cfb3f50d3e304810eb7a ># . . . . . . . . ..
-### TBATS                                                                   ####
-
+      ### . . . . . . . . .. #< 5105bd2a0698cfb3f50d3e304810eb7a ># . . . . . . . . ..
+      ### TBATS                                                                   ####
+      
       if("TBATS" %in% input$Algorithm){
         message('Evaluating TBATS')
         if(input$evaluation_type == 1) {
@@ -790,10 +821,10 @@ server <- function(input, output, session) {
             forecast(fit,h)
           }
           forecastFit <- try(time_series_cv(y = reactiveVariables$TotalSeries,
-                                  forecastfunction = forecast_TBATS, 
-                                  h = input$horizon,
-                                  window = 5,
-                                  initial = floor(length(reactiveVariables$TotalSeries)/2)))
+                                            forecastfunction = forecast_TBATS, 
+                                            h = input$horizon,
+                                            window = 5,
+                                            initial = floor(length(reactiveVariables$TotalSeries)/2)))
           if (is(forecastFit, 'try-error')) {
             forecasts$TBATS <- NULL
           } else {
@@ -807,64 +838,64 @@ server <- function(input, output, session) {
               forecasts$TBATS[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
               forecasts$TBATS[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
             }
-
+            
           }
         }
         
       }
-
-### . . . . . . . . .. #< 094ca0b0d463fea81283d604e5c9f5bf ># . . . . . . . . ..
-### PROPHET                                                                 ####
-
+      
+      ### . . . . . . . . .. #< 094ca0b0d463fea81283d604e5c9f5bf ># . . . . . . . . ..
+      ### PROPHET                                                                 ####
+      
       if("PROPHET" %in% input$Algorithm){
         message('Evaluating PROPHET')
         if(input$evaluation_type == 1) {
-        forecasts$PROPHET <- list()
-        
-        if(input$frequency_known == 1 & !is.null(input$frequency)){
-          freq_int <- as.numeric(input$frequency)
-        } else {
-          freq_int <- findfrequency(reactiveVariables$TotalSeries)
-        }
-       
-        valid_frequency <-  c( 1, 7, 12, 4, 365)
-        names(valid_frequency) <-  c('day', 'week', 'month', 'quarter', 'year')
-        check <- data.table(valid_frequency = valid_frequency, 
-                            freq_int = freq_int, 
-                            name = names(valid_frequency))
-        check[,diff := abs(valid_frequency - freq_int)]
-        freq <- check[which.min(diff),name]
-
-        dt <- data.table(ds=seq.Date(from = Sys.Date(),
-                                     length.out = length(reactiveVariables$Series_to_Fit),
-                                     by = freq),
-                         y = reactiveVariables$Series_to_Fit)
-
-        
-        # browser()
-        fit <- try(prophet(dt, 
-                           growth = input$growth,
-                           n.changepoints = input$n.changepoints,
-                           changepoint.range = input$changepoint.range, 
-                           yearly.seasonality = input$yearly.seasonality,
-                           weekly.seasonality = input$weekly.seasonality,
-                           daily.seasonality = input$daily.seasonality,
-                           seasonality.mode = input$seasonality.mode))
-        if (is(fit, 'try-error')) {
-          forecasts$PROPHET <- NULL
-        } else {
-          future <- make_future_dataframe(fit, 
-                                          periods = length(reactiveVariables$Series_to_Evaluate),
-                                          freq = freq)
-          forecast <- predict(fit, future)
-          forecastFit_dt <- as.data.table(forecast)
-          forecastFit_dt <- tail(forecastFit_dt[,.(`Point Forecast` = yhat)], length(reactiveVariables$Series_to_Evaluate))
-          forecasts$PROPHET[['Fit']] <- fit
-          forecasts$PROPHET[['Forecast']] <- forecastFit_dt[, `Point Forecast`]
-          forecasts$PROPHET[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-          forecasts$PROPHET[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-          forecasts$PROPHET[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
-        }
+          forecasts$PROPHET <- list()
+          
+          if(input$frequency_known == 1 & !is.null(input$frequency)){
+            freq_int <- as.numeric(input$frequency)
+          } else {
+            freq_int <- findfrequency(reactiveVariables$TotalSeries)
+          }
+          
+          valid_frequency <-  c( 1, 7, 12, 4, 365)
+          names(valid_frequency) <-  c('day', 'week', 'month', 'quarter', 'year')
+          check <- data.table(valid_frequency = valid_frequency, 
+                              freq_int = freq_int, 
+                              name = names(valid_frequency))
+          check[,diff := abs(valid_frequency - freq_int)]
+          freq <- check[which.min(diff),name]
+          
+          dt <- data.table(ds=seq.Date(from = Sys.Date(),
+                                       length.out = length(reactiveVariables$Series_to_Fit),
+                                       by = freq),
+                           y = reactiveVariables$Series_to_Fit)
+          
+          
+          # browser()
+          fit <- try(prophet(dt, 
+                             growth = input$growth,
+                             n.changepoints = input$n.changepoints,
+                             changepoint.range = input$changepoint.range, 
+                             yearly.seasonality = input$yearly.seasonality,
+                             weekly.seasonality = input$weekly.seasonality,
+                             daily.seasonality = input$daily.seasonality,
+                             seasonality.mode = input$seasonality.mode))
+          if (is(fit, 'try-error')) {
+            forecasts$PROPHET <- NULL
+          } else {
+            future <- make_future_dataframe(fit, 
+                                            periods = length(reactiveVariables$Series_to_Evaluate),
+                                            freq = freq)
+            forecast <- predict(fit, future)
+            forecastFit_dt <- as.data.table(forecast)
+            forecastFit_dt <- tail(forecastFit_dt[,.(`Point Forecast` = yhat)], length(reactiveVariables$Series_to_Evaluate))
+            forecasts$PROPHET[['Fit']] <- fit
+            forecasts$PROPHET[['Forecast']] <- forecastFit_dt[, `Point Forecast`]
+            forecasts$PROPHET[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
+            forecasts$PROPHET[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
+            forecasts$PROPHET[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
+          }
         } else {
           forecasts$PROPHET <- list()
           # browser()
@@ -888,14 +919,14 @@ server <- function(input, output, session) {
                            y = reactiveVariables$TotalSeries)
           
           forecastFit <- try(crossValidationProphet(dt = dt, 
-                                        horizon = input$horizon,
-                                        window = 5,
-                                        initial = floor(length(reactiveVariables$TotalSeries)/2)))
+                                                    horizon = input$horizon,
+                                                    window = 5,
+                                                    initial = floor(length(reactiveVariables$TotalSeries)/2)))
           
           if (is(forecastFit, 'try-error')) {
             forecasts$PROPHET <- NULL
           } else {
-
+            
             if(input$horizon > 1){
               forecasts$PROPHET[['MAE']]  <- forecastFit[Metric == 'MAE', !c('Metric')] 
               forecasts$PROPHET[['RMSE']]  <- forecastFit[Metric == 'RMSE', !c('Metric')] 
@@ -916,9 +947,9 @@ server <- function(input, output, session) {
         }
       }
       
-### . . . . . . . . .. #< e2767db5fbd90bebf92a595374770134 ># . . . . . . . . ..
-### GARCH (Unavailable)                                                     ####
-
+      ### . . . . . . . . .. #< e2767db5fbd90bebf92a595374770134 ># . . . . . . . . ..
+      ### GARCH (Unavailable)                                                     ####
+      
       
       if("GARCH" %in% input$Algorithm & input$evaluation_type == 1) {
         forecasts$GARCH <- list()
@@ -939,12 +970,12 @@ server <- function(input, output, session) {
                                   data=reactiveVariables$Series_to_Fit),
                         error = function(e){NULL},
                         warning = function(w){NULL})
-
+        
         
         if (is.null(fit)) {
           forecasts$GARCH <- NULL
         } else {
-      
+          
           forecastFit <- ugarchboot(fit,
                                     method=c("Partial","Full")[1],
                                     n.ahead = length(reactiveVariables$Series_to_Evaluate),
@@ -993,28 +1024,28 @@ server <- function(input, output, session) {
         # }
       }
       
-### . . . . . . . . .. #< 8025fc324c9392644d0bfd5c01722bdc ># . . . . . . . . ..
-### THETA                                                                   ####
-
+      ### . . . . . . . . .. #< 8025fc324c9392644d0bfd5c01722bdc ># . . . . . . . . ..
+      ### THETA                                                                   ####
+      
       if("THETA" %in% input$Algorithm) {
         message('Evaluating THETA')
         theta_model <- function(y, model, opt.method, s, h){
           if(length(y) <= frequency(y)){
-              if(s=='NULL'){
-                ss <- 'additive'
-              }else if(s=='additive'){
-                ss <- 'additive'
-              }else{
-                ss <- TRUE
-              }
+            if(s=='NULL'){
+              ss <- 'additive'
+            }else if(s=='additive'){
+              ss <- 'additive'
+            }else{
+              ss <- TRUE
+            }
           } else {
-              if(s=='NULL'){
-                ss <- NULL
-              }else if(s=='additive'){
-                ss <- 'additive'
-              }else{
-                ss <- TRUE
-              }
+            if(s=='NULL'){
+              ss <- NULL
+            }else if(s=='additive'){
+              ss <- 'additive'
+            }else{
+              ss <- TRUE
+            }
           }
           # browser()
           switch(model,
@@ -1032,7 +1063,7 @@ server <- function(input, output, session) {
                                      opt.method = input$opt.method,
                                      s = input$s,
                                      model = input$theta.model)
-
+          
           forecasting_mean <- head(forecastFit$mean,length(reactiveVariables$Series_to_Evaluate))
           forecasts$THETA[['Fit']] <- forecastFit$method
           forecasts$THETA[['Forecast']] <-  forecasting_mean
@@ -1040,40 +1071,98 @@ server <- function(input, output, session) {
           forecasts$THETA[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecasting_mean)
           forecasts$THETA[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecasting_mean)
         } else{
-            forecasts$THETA <- list()
-            forecastFit <- try(time_series_cv(y = reactiveVariables$TotalSeries,
-                                forecastfunction = theta_model, 
-                                h = input$horizon+1,
-                                opt.method = input$opt.method,
-                                s = input$s,
-                                model = input$theta.model,
-                                window = 5,
-                                initial = floor(length(reactiveVariables$TotalSeries)/2))) 
+          forecasts$THETA <- list()
+          forecastFit <- try(time_series_cv(y = reactiveVariables$TotalSeries,
+                                            forecastfunction = theta_model, 
+                                            h = input$horizon+1,
+                                            opt.method = input$opt.method,
+                                            s = input$s,
+                                            model = input$theta.model,
+                                            window = 5,
+                                            initial = floor(length(reactiveVariables$TotalSeries)/2))) 
+          
+          if (is(forecastFit, 'try-error')) {
+            forecasts$THETA <-  NULL
+          } else{
             
-            if (is(forecastFit, 'try-error')) {
-              forecasts$THETA <-  NULL
-            } else{
-
-                if(input$horizon > 1){
-                  forecastFit_dt <- as.data.table(forecastFit)
-                  forecasts$THETA[['MAE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})][,1:input$horizon]
-                  forecasts$THETA[['RMSE']]  <- forecastFit_dt[,lapply(.SD, function(x){ sqrt(mean(x^2, na.rm=TRUE))})][,1:input$horizon]
-                  forecasts$THETA[['MAPE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x/reactiveVariables$TotalSeries), na.rm = T)})][,1:input$horizon]
-                } else {
-                  forecasts$THETA[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
-                  forecasts$THETA[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
-                  forecasts$THETA[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
-                }
-            
+            if(input$horizon > 1){
+              forecastFit_dt <- as.data.table(forecastFit)
+              forecasts$THETA[['MAE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})][,1:input$horizon]
+              forecasts$THETA[['RMSE']]  <- forecastFit_dt[,lapply(.SD, function(x){ sqrt(mean(x^2, na.rm=TRUE))})][,1:input$horizon]
+              forecasts$THETA[['MAPE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x/reactiveVariables$TotalSeries), na.rm = T)})][,1:input$horizon]
+            } else {
+              forecasts$THETA[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
+              forecasts$THETA[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
+              forecasts$THETA[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
             }
             
+          }
+          
         }
       }
       
-### . . . . . . . . .. #< 0f7d6d2743442bb708d684621e3247f7 ># . . . . . . . . ..
-### ENSEMPLE                                                                ####
-
-      if(input$ensemble && !is.null(to_ensemble()) & input$evaluation_type == 1){
+      ### . . . . . . . . .. #< 0f7d6d2743442bb708d684621e3247f7 ># . . . . . . . . ..
+      
+      
+### . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ..
+### NNETAR                                                                  ####
+      
+      if("NNETAR" %in% input$Algorithm){
+        message('Evaluating NNETAR')
+        if(input$evaluation_type == 1) {
+          forecasts$NNETAR <- list()
+          fit <- try(nnetar(y = reactiveVariables$Series_to_Fit,
+                            P = input$number_of_seasonal_lags,
+                            lamda = ifelse(input$lamda=='NULL',NULL,'auto'), 
+                            scale.inputs = input$scale.inputs,
+                            repeats = input$repeats))
+          if (is(fit, 'try-error')) {
+            forecasts$NNETAR <- NULL
+          } else {
+            forecastFit <- forecast(fit, length(reactiveVariables$Series_to_Evaluate))
+            forecastFit_dt <- data.table(`Point Forecast` = forecastFit$mean)
+            forecasts$NNETAR[['Forecast']] <- as.vector(forecastFit_dt[,`Point Forecast`])
+            forecasts$NNETAR[['MAE']]  <- mae(as.vector(reactiveVariables$Series_to_Evaluate), as.vector(forecastFit_dt[, `Point Forecast`]))
+            forecasts$NNETAR[['RMSE']] <- rmse(as.vector(reactiveVariables$Series_to_Evaluate), as.vector(forecastFit_dt[, `Point Forecast`]))
+            forecasts$NNETAR[['MAPE']] <- mape(as.vector(reactiveVariables$Series_to_Evaluate), as.vector(forecastFit_dt[, `Point Forecast`]))
+          }
+        } else {
+          forecasts$NNETAR <- list()
+          forecast_NNETAR <-function(x,h){ 
+            fit = nnetar(y = x,
+                         P = input$number_of_seasonal_lags,
+                         lamda = ifelse(input$lamda=='NULL',NULL,'auto'), 
+                         scale.inputs = input$scale.inputs,
+                         repeats = input$repeats)
+            forecast(fit,h)
+          }
+          forecastFit <- try(time_series_cv(y = reactiveVariables$TotalSeries,
+                                            forecastfunction = forecast_NNETAR, 
+                                            h = input$horizon,
+                                            window = 5,
+                                            initial = floor(length(reactiveVariables$TotalSeries)/2)))
+          if (is(forecastFit, 'try-error')) {
+            forecasts$NNETAR <- NULL
+          } else {
+            if(input$horizon > 1){
+              forecastFit_dt <- as.data.table(forecastFit)
+              forecasts$NNETAR[['MAE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})]
+              forecasts$NNETAR[['RMSE']]  <- forecastFit_dt[,lapply(.SD, function(x){ sqrt(mean(x^2, na.rm=TRUE))})]
+              forecasts$NNETAR[['MAPE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x/reactiveVariables$TotalSeries), na.rm = T)})]
+            } else {
+              forecasts$NNETAR[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
+              forecasts$NNETAR[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
+              forecasts$NNETAR[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
+            }
+            
+          }
+        }
+        
+      }
+      
+      ### ENSEMPLE                                                                ####
+      
+      if(!is.null(input$ensemble)&& input$ensemble && !is.null(to_ensemble()) & input$evaluation_type == 1){
         forecasts$ENSEMBLE <- list()
         ensemble_list <- list()
         fit_list <- list()
@@ -1097,47 +1186,46 @@ server <- function(input, output, session) {
       removeModal()
       message('Left evaluation')
     }
-
-    })
+    
+  })
   
-
-
-##  .................. #< 24c696a83dee6360f154817b64f527d8 ># ..................
-##  Evaluation Resutls Table                                                ####
-
+  
+  
+  ##  .................. #< 24c696a83dee6360f154817b64f527d8 ># ..................
+  ##  Evaluation Resutls Table                                                ####
+  
   output$results <- renderDataTable({
     req(reactiveVariables$check == T)
     req(reactiveVariables$evaluation_done)
     final_results <- copy(reactiveVariables$Forecasts)
     req(length(final_results) >= 1)
-   # browser()
-      result_list <- list()
-      for(i in  1:length(final_results)){
-        result_list[[i]] <- data.table('Algorithm' = names(final_results[i]),
-                                       'RMSE' = final_results[[i]][['RMSE']],
-                                       'MAE' = final_results[[i]][['MAE']],
-                                       'MAPE' = final_results[[i]][['MAPE']])
-   
-      }
-
-      result_dt <- rbindlist(result_list,fill = T)
-      reactiveVariables$Results <- result_dt
-      datatable(result_dt, 
-                rownames = FALSE,
-                # fillContainer = TRUE,
-                height = paste0(200*nrow(result_dt),'px'),
-                options = list(pageLength = 10,
-                               width="100%", 
-                               scrollY = F,
-                               scrollX = T,
-                               dom = 't',
-                               initComplete = JS(
-                                 "function(settings, json) {",
-                                 "$(this.api().table().header()).css({'background-color': '#34495e', 'color': '#fff'});",
-                                 "}"
-                               )))
-      # %>% 
-      #   formatStyle(names(result_dt), backgroundColor = "#34495e", color ='#bfa423')
+    result_list <- list()
+    for(i in  1:length(final_results)){
+      result_list[[i]] <- data.table('Algorithm' = names(final_results[i]),
+                                     'RMSE' = final_results[[i]][['RMSE']],
+                                     'MAE' = final_results[[i]][['MAE']],
+                                     'MAPE' = final_results[[i]][['MAPE']])
+      
+    }
+    
+    result_dt <- rbindlist(result_list,fill = T)
+    reactiveVariables$Results <- result_dt
+    datatable(result_dt, 
+              rownames = FALSE,
+              # fillContainer = TRUE,
+              height = paste0(200*nrow(result_dt),'px'),
+              options = list(pageLength = 10,
+                             width="100%", 
+                             scrollY = F,
+                             scrollX = T,
+                             dom = 't',
+                             initComplete = JS(
+                               "function(settings, json) {",
+                               "$(this.api().table().header()).css({'background-color': '#34495e', 'color': '#fff'});",
+                               "}"
+                             )))
+    # %>% 
+    #   formatStyle(names(result_dt), backgroundColor = "#34495e", color ='#bfa423')
   })
   
   output$dt_row_selector <- renderUI({
@@ -1165,10 +1253,10 @@ server <- function(input, output, session) {
     req(length(final_results) >= 1)
     tagList(
       actionButton(inputId = 'forecast_ahead',
-                            label = "Forecast ahead with the selected row from the evaluation's results table"),
+                   label = "Forecast ahead with the selected row from the evaluation's results table"),
       numericInput('forecast_horizon','Forecast horizon',value =1, min=1,max =100,width = '100px'))
   })
-
+  
   output$forecast_tabs_container <- renderUI({
     req(reactiveVariables$check == T)
     req(reactiveVariables$evaluation_done)
@@ -1177,10 +1265,10 @@ server <- function(input, output, session) {
     # div(
     #   align = 'left',
     #   class = "container",
-      shiny::uiOutput("dynamic_tabs2")
+    shiny::uiOutput("dynamic_tabs2")
     # )
   })
-
+  
   output$dynamic_tabs <- shiny::renderUI({
     req(reactiveVariables$check == T)
     req(input$evaluation_type == 1)
@@ -1188,66 +1276,65 @@ server <- function(input, output, session) {
     final_results <- reactiveVariables$Forecasts
     req(length(final_results) >= 1)
     Tabs <- names(reactiveVariables$Forecasts)
-   
     
-    
-   chart_lines <- sapply(Tabs, function(x){
+
+    chart_lines <- sapply(Tabs, function(x){
       series <- as.vector(reactiveVariables$TotalSeries)
       forecasts <- as.vector(reactiveVariables$Forecasts[[x]]$Forecast)
       dt <- data.table(Series = series)
       dt[,N := 1:.N]
       dt[N > (nrow(dt) - length(forecasts)), Fitted := forecasts]
     }, USE.NAMES = T, simplify = F)
-   
     
     
-
-   gap <- lapply(seq_along(chart_lines), function(x){
-   
-     shiny::tabPanel(
-       title = names(chart_lines[x]),
-       div(align = 'left',
-         
-         class = "panel",
-         div(align = 'left',
-           class = "panel-header",
-           tags$h3(names(chart_lines[x]))
-         ),
-         div(align = 'left',
-           class = "panel-body",
-           highchart()  %>% 
-             hc_xAxis(title = list(text = "Observation number"),
-               plotLines = list(list(color = '#ffffff',
-                                     width = 1, 
-                                     zIndex = 1.67,
-                                     dashStyle =  'Solid',
-                                     value = (length(chart_lines[[x]]$Fitted)-sum(!is.na(chart_lines[[x]]$Fitted))))),
-               labels = list(style = list(color ='#fff')))%>%
-             hc_yAxis(title = list(text = names(chart_lines[x])),
-                      allowDecimals =F,
-                      labels = list(style = list(color ='#fff'))) %>%
-             hc_tooltip(useHTML= T,
-                        followPointer= T,
-                        shared = T,
-                        padding = 2,
-                        animation= T,
-                        table = F) %>%
-             hc_add_series(chart_lines[[x]], type = "line", name = "Fitted" ,
-                           color = '#F8766D',
-                           hcaes(x = N, y = "Fitted"),
-                           tooltip = list(pointFormat = "<b > Forecast :</b> {point.y:.0f} ")) %>%
-             hc_add_series(chart_lines[[x]], type = "line", name = "Series",
-                           hcaes(x = N, y = "Series"),
-                           color = '#619CFF',
-                           tooltip = list(pointFormat = "<b > Actual :</b> {point.y:.0f} ")) %>%
-             hc_chart(zoomType = "xy") %>% 
-             hc_add_theme(hc_theme_flatdark())
-         )
-       )
-     )
-     
-     
-   })
+    
+    
+    gap <- lapply(seq_along(chart_lines), function(x){
+      
+      shiny::tabPanel(
+        title = names(chart_lines[x]),
+        div(align = 'left',
+            
+            class = "panel",
+            div(align = 'left',
+                class = "panel-header",
+                tags$h3(names(chart_lines[x]))
+            ),
+            div(align = 'left',
+                class = "panel-body",
+                highchart()  %>% 
+                  hc_xAxis(title = list(text = "Observation number"),
+                           plotLines = list(list(color = '#ffffff',
+                                                 width = 1, 
+                                                 zIndex = 1.67,
+                                                 dashStyle =  'Solid',
+                                                 value = (length(chart_lines[[x]]$Fitted)-sum(!is.na(chart_lines[[x]]$Fitted))))),
+                           labels = list(style = list(color ='#fff')))%>%
+                  hc_yAxis(title = list(text = names(chart_lines[x])),
+                           allowDecimals =F,
+                           labels = list(style = list(color ='#fff'))) %>%
+                  hc_tooltip(useHTML= T,
+                             followPointer= T,
+                             shared = T,
+                             padding = 2,
+                             animation= T,
+                             table = F) %>%
+                  hc_add_series(chart_lines[[x]], type = "line", name = "Fitted" ,
+                                color = '#F8766D',
+                                hcaes(x = N, y = "Fitted"),
+                                tooltip = list(pointFormat = "<b > Forecast :</b> {point.y:.0f} ")) %>%
+                  hc_add_series(chart_lines[[x]], type = "line", name = "Series",
+                                hcaes(x = N, y = "Series"),
+                                color = '#619CFF',
+                                tooltip = list(pointFormat = "<b > Actual :</b> {point.y:.0f} ")) %>%
+                  hc_chart(zoomType = "xy") %>% 
+                  hc_add_theme(hc_theme_flatdark())
+            )
+        )
+      )
+      
+      
+    })
     # seq_along(chart_lines) %>%
     #   purrr::map(~ shiny::tabPanel(
     #                  title = names(chart_lines[.x]),
@@ -1296,29 +1383,30 @@ server <- function(input, output, session) {
             args = gap %>% append(list(type = "tabs", id   = "evaluation_charts")))
     
   })
-
-##  .................. #< 6a18d31a9e8543e6ad7168bda94b7535 ># ..................
-##  Forecasting                                                             ####
-
+  
+  ##  .................. #< 6a18d31a9e8543e6ad7168bda94b7535 ># ..................
+  ##  Forecasting                                                             ####
+  
   observeEvent(input$forecast_ahead,{
     req(reactiveVariables$check == T)
     if(length(input$results_rows_selected) == 0){
-      shinyalert(text = 'Select a row from the results table', type = 'info',
-                 timer = 3000,
-                 closeOnEsc = T,
-                 showConfirmButton = F,
-                 closeOnClickOutside = T)
+      # shinyalert::shinyalert(text = 'Select a row from the results table', type = 'info',
+      #            timer = 3000,
+      #            closeOnEsc = T,
+      #            showConfirmButton = T,
+      #            closeOnClickOutside = T)
+      shinyjs::info('Select a row from the results table')
     } else {
-  
+      
       showModal(Modal(text = ""))
       message('Forecasting')
       forecasts_ahead <- list()
       Result_dt <- reactiveVariables$Results
       Algorithms <- reactiveVariables$Results[input$results_rows_selected,Algorithm]
       
-#### . . . . . . . . .. #< 2f343b2d516182ef8966454ae20d2a53 ># . . . . . . . . ..
-#### DRIFT                                                                   ####
-
+      #### . . . . . . . . .. #< 2f343b2d516182ef8966454ae20d2a53 ># . . . . . . . . ..
+      #### DRIFT                                                                   ####
+      
       if("DRIFT" %in% Algorithms) {
         message('Forecasting DRIFT')
         forecasts_ahead$DRIFT <- list()
@@ -1326,10 +1414,10 @@ server <- function(input, output, session) {
         forecastFit_dt <- as.data.table(forecastFit)
         forecasts_ahead$DRIFT[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
       }
-        
-### . . . . . . . . .. #< a0921dd4a3b7bc310493699c734bab0a ># . . . . . . . . ..
-### NAIVE                                                                   ####
-
+      
+      ### . . . . . . . . .. #< a0921dd4a3b7bc310493699c734bab0a ># . . . . . . . . ..
+      ### NAIVE                                                                   ####
+      
       if ("NAIVE" %in% Algorithms) {
         message('Forecasting NAIVE')
         forecasts_ahead$NAIVE <- list()
@@ -1341,14 +1429,41 @@ server <- function(input, output, session) {
         forecastFit_dt <- as.data.table(forecastFit)
         forecasts_ahead$NAIVE[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
       }
-
-### . . . . . . . . .. #< d2c567bb885ae625779fb22fdb87a87b ># . . . . . . . . ..
-### ARIMA                                                                   ####
-
+      
+      ### . . . . . . . . .. #< d2c567bb885ae625779fb22fdb87a87b ># . . . . . . . . ..
+      ### ARIMA                                                                   ####
+      
       if("ARIMA" %in% Algorithms) {
         message('Forecasting ARIMA')
-          forecasts_ahead$ARIMA <- list()
-          fit <- try(auto.arima(reactiveVariables$TotalSeries,
+        forecasts_ahead$ARIMA <- list()
+        fit <- try(auto.arima(reactiveVariables$TotalSeries,
+                              max.p = input$max.p,
+                              max.q = input$max.q,
+                              max.P = input$max.P,
+                              max.Q = input$max.Q,
+                              max.order = input$max.order,
+                              max.d = input$max.d,
+                              max.D = input$max.D,
+                              ic = input$ic,
+                              allowdrift = input$allowdrift,
+                              allowmean = input$allowmean,
+                              seasonal = input$seasonal,
+                              stepwise = T))
+        if (is(fit, 'try-error')) {
+          forecasts_ahead$ARIMA <- NULL
+        } else {
+          forecastFit <- forecast(fit, input$forecast_horizon)
+          forecastFit_dt <- as.data.table(forecastFit)
+          forecasts_ahead$ARIMA[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
+        }
+        
+        if(input$arima_seasonality_decomposition == T & (frequency(reactiveVariables$TotalSeries) >= 2 & length(reactiveVariables$TotalSeries)>2*frequency(reactiveVariables$TotalSeries))){
+          forecasts_ahead$ARIMA_seasonality_decomposition <- list()
+          decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
+          seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
+          seasonaly_adjusted_to_Fit <- head(seasonaly_adjusted, length(reactiveVariables$TotalSeries))
+          seasonal_to_add <- tail(decomposed_ts$time.series[,'seasonal'], input$forecast_horizon)
+          fit <- try(auto.arima(seasonaly_adjusted_to_Fit,
                                 max.p = input$max.p,
                                 max.q = input$max.q,
                                 max.P = input$max.P,
@@ -1362,103 +1477,76 @@ server <- function(input, output, session) {
                                 seasonal = input$seasonal,
                                 stepwise = T))
           if (is(fit, 'try-error')) {
-            forecasts_ahead$ARIMA <- NULL
+            forecasts_ahead$ARIMA_seasonality_decomposition <- NULL
           } else {
             forecastFit <- forecast(fit, input$forecast_horizon)
             forecastFit_dt <- as.data.table(forecastFit)
-            forecasts_ahead$ARIMA[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
+            forecastFit_dt <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
+            forecastFit_dt[,c('Point Forecast', 'Lo 95' , 'Hi 95') := .(
+              `Point Forecast` + seasonal_to_add, `Lo 95` + seasonal_to_add, `Hi 95` + seasonal_to_add
+            )]
+            forecasts_ahead$ARIMA_seasonality_decomposition[['Forecast']] <- forecastFit_dt
           }
-          
-          if(input$arima_seasonality_decomposition == T & (frequency(reactiveVariables$TotalSeries) >= 2 & length(reactiveVariables$TotalSeries)>2*frequency(reactiveVariables$TotalSeries))){
-            forecasts_ahead$ARIMA_seasonality_decomposition <- list()
-            decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
-            seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
-            seasonaly_adjusted_to_Fit <- head(seasonaly_adjusted, length(reactiveVariables$TotalSeries))
-            seasonal_to_add <- tail(decomposed_ts$time.series[,'seasonal'], input$forecast_horizon)
-            fit <- try(auto.arima(seasonaly_adjusted_to_Fit,
-                                  max.p = input$max.p,
-                                  max.q = input$max.q,
-                                  max.P = input$max.P,
-                                  max.Q = input$max.Q,
-                                  max.order = input$max.order,
-                                  max.d = input$max.d,
-                                  max.D = input$max.D,
-                                  ic = input$ic,
-                                  allowdrift = input$allowdrift,
-                                  allowmean = input$allowmean,
-                                  seasonal = input$seasonal,
-                                  stepwise = T))
-            if (is(fit, 'try-error')) {
-              forecasts_ahead$ARIMA_seasonality_decomposition <- NULL
-            } else {
-              forecastFit <- forecast(fit, input$forecast_horizon)
-              forecastFit_dt <- as.data.table(forecastFit)
-              forecastFit_dt <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
-              forecastFit_dt[,c('Point Forecast', 'Lo 95' , 'Hi 95') := .(
-                `Point Forecast` + seasonal_to_add, `Lo 95` + seasonal_to_add, `Hi 95` + seasonal_to_add
-              )]
-             forecasts_ahead$ARIMA_seasonality_decomposition[['Forecast']] <- forecastFit_dt
-            }
-          }
+        }
       }
       
-### . . . . . . . . .. #< 044c8add4ad5eb01d51d2e75078f2d8d ># . . . . . . . . ..
-### ETS                                                                     ####
-
+      ### . . . . . . . . .. #< 044c8add4ad5eb01d51d2e75078f2d8d ># . . . . . . . . ..
+      ### ETS                                                                     ####
+      
       if("ETS" %in% Algorithms){
         message('Forecasting ETS')
-          forecasts_ahead$ETS <- list()
-          model <- paste0(input$errortype,input$trendtype,input$seasontype)
-          fit <- try(ets(reactiveVariables$TotalSeries,model=model, allow.multiplicative.trend = input$allow.multiplicative.trend))
+        forecasts_ahead$ETS <- list()
+        model <- paste0(input$errortype,input$trendtype,input$seasontype)
+        fit <- try(ets(reactiveVariables$TotalSeries,model=model, allow.multiplicative.trend = input$allow.multiplicative.trend))
+        if (is(fit, 'try-error')) {
+          forecasts_ahead$ETS <- NULL
+        } else {
+          forecastFit <- forecast(fit, input$forecast_horizon)
+          forecastFit_dt <- as.data.table(forecastFit)
+          forecasts_ahead$ETS[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
+        }
+        
+        if(input$arima_seasonality_decomposition == T  & (frequency(reactiveVariables$TotalSeries) >= 2 & length(reactiveVariables$TotalSeries)>2*frequency(reactiveVariables$TotalSeries))){
+          forecasts_ahead$ETS_seasonality_decomposition <- list()
+          decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
+          seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
+          seasonaly_adjusted_to_Fit <- head(seasonaly_adjusted, length(reactiveVariables$TotalSeries))
+          seasonal_to_add <- tail(decomposed_ts$time.series[,'seasonal'], input$forecast_horizon)
+          fit <- try(ets(seasonaly_adjusted_to_Fit,model=model, allow.multiplicative.trend = input$allow.multiplicative.trend))
           if (is(fit, 'try-error')) {
-            forecasts_ahead$ETS <- NULL
+            forecasts_ahead$ETS_seasonality_decomposition <- NULL
           } else {
             forecastFit <- forecast(fit, input$forecast_horizon)
             forecastFit_dt <- as.data.table(forecastFit)
-            forecasts_ahead$ETS[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
+            forecastFit_dt <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
+            forecastFit_dt[,c('Point Forecast', 'Lo 95' , 'Hi 95') := .(
+              `Point Forecast` + seasonal_to_add, `Lo 95` + seasonal_to_add, `Hi 95` + seasonal_to_add
+            )]
+            forecasts_ahead$ETS_seasonality_decomposition[['Forecast']] <- forecastFit_dt
           }
-          
-          if(input$arima_seasonality_decomposition == T  & (frequency(reactiveVariables$TotalSeries) >= 2 & length(reactiveVariables$TotalSeries)>2*frequency(reactiveVariables$TotalSeries))){
-            forecasts_ahead$ETS_seasonality_decomposition <- list()
-            decomposed_ts <- stl(reactiveVariables$TotalSeries,s.window = "periodic",robust = T)
-            seasonaly_adjusted <- reactiveVariables$TotalSeries - decomposed_ts$time.series[,'seasonal']
-            seasonaly_adjusted_to_Fit <- head(seasonaly_adjusted, length(reactiveVariables$TotalSeries))
-            seasonal_to_add <- tail(decomposed_ts$time.series[,'seasonal'], input$forecast_horizon)
-            fit <- try(ets(seasonaly_adjusted_to_Fit,model=model, allow.multiplicative.trend = input$allow.multiplicative.trend))
-            if (is(fit, 'try-error')) {
-              forecasts_ahead$ETS_seasonality_decomposition <- NULL
-            } else {
-              forecastFit <- forecast(fit, input$forecast_horizon)
-              forecastFit_dt <- as.data.table(forecastFit)
-              forecastFit_dt <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
-              forecastFit_dt[,c('Point Forecast', 'Lo 95' , 'Hi 95') := .(
-                `Point Forecast` + seasonal_to_add, `Lo 95` + seasonal_to_add, `Hi 95` + seasonal_to_add
-              )]
-              forecasts_ahead$ETS_seasonality_decomposition[['Forecast']] <- forecastFit_dt
-            }
-          }
-
+        }
+        
       } 
       
-### . . . . . . . . .. #< 76a4e2451752cd2f1b608013513b382d ># . . . . . . . . ..
-### TBATS                                                                   ####
-
+      ### . . . . . . . . .. #< 76a4e2451752cd2f1b608013513b382d ># . . . . . . . . ..
+      ### TBATS                                                                   ####
+      
       if("TBATS" %in% Algorithms){
         message('Forecasting TBATS')
-          forecasts_ahead$TBATS <- list()
-          fit <- try(tbats(reactiveVariables$TotalSeries,use.arma.errors = input$use.arma.errors))
-          if (is(fit, 'try-error')) {
-            forecasts_ahead$TBATS <- NULL
-          } else {
-            forecastFit <- forecast(fit, input$forecast_horizon)
-            forecastFit_dt <- as.data.table(forecastFit)
-            forecasts_ahead$TBATS[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
-          }
+        forecasts_ahead$TBATS <- list()
+        fit <- try(tbats(reactiveVariables$TotalSeries,use.arma.errors = input$use.arma.errors))
+        if (is(fit, 'try-error')) {
+          forecasts_ahead$TBATS <- NULL
+        } else {
+          forecastFit <- forecast(fit, input$forecast_horizon)
+          forecastFit_dt <- as.data.table(forecastFit)
+          forecasts_ahead$TBATS[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
+        }
       }
       
-### . . . . . . . . .. #< 13683ac583e4e01c71d5ca3f56d576fa ># . . . . . . . . ..
-### PROPHET                                                                 ####
-
+      ### . . . . . . . . .. #< 13683ac583e4e01c71d5ca3f56d576fa ># . . . . . . . . ..
+      ### PROPHET                                                                 ####
+      
       if("PROPHET" %in% Algorithms){
         message('Forecasting PROPHET')
         forecasts_ahead$PROPHET <- list()
@@ -1478,7 +1566,7 @@ server <- function(input, output, session) {
                                      length.out = length(reactiveVariables$TotalSeries),
                                      by = freq),
                          y = reactiveVariables$TotalSeries)
-
+        
         fit <- try(prophet(dt, 
                            growth = input$growth,
                            n.changepoints = input$n.changepoints,
@@ -1501,10 +1589,10 @@ server <- function(input, output, session) {
           forecasts_ahead$PROPHET[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
         }
       }
-
-### . . . . . . . . .. #< e6f0a7fb3efbd4c2f3ef790de27a3b41 ># . . . . . . . . ..
-### GARCH (Unavailable)                                                     ####
-
+      
+      ### . . . . . . . . .. #< e6f0a7fb3efbd4c2f3ef790de27a3b41 ># . . . . . . . . ..
+      ### GARCH (Unavailable)                                                     ####
+      
       if("GARCH" %in% Algorithms & input$evaluation_type == 1) {
         forecasts_ahead$GARCH <- list()
         spec <- ugarchspec(
@@ -1539,10 +1627,10 @@ server <- function(input, output, session) {
           forecasts_ahead$GARCH[['Forecast']] <- forecastFit_dt[, .(`Point Forecast`, `Lo 95` , `Hi 95`)]
         }
       }
-
-### . . . . . . . . .. #< b5b979f6387908b18e37ac78146a6a37 ># . . . . . . . . ..
-### THETA                                                                   ####
-
+      
+      ### . . . . . . . . .. #< b5b979f6387908b18e37ac78146a6a37 ># . . . . . . . . ..
+      ### THETA                                                                   ####
+      
       if("THETA" %in% Algorithms) {
         message('Forecasting THETA')
         theta_model <- function(y, model, opt.method, s, h){
@@ -1592,20 +1680,40 @@ server <- function(input, output, session) {
         
       }
       
+      
+### . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ..
+### NNETAR                                                                  ####
+      if("NNETAR" %in% Algorithms){
+        message('Forecasting NNETAR')
+        forecasts_ahead$NNETAR <- list()
+        fit <- try(nnetar(y = reactiveVariables$TotalSeries,
+                          P = input$number_of_seasonal_lags,
+                          lamda = ifelse(input$lamda=='NULL',NULL,'auto'), 
+                          scale.inputs = input$scale.inputs,
+                          repeats = input$repeats))
+        if (is(fit, 'try-error')) {
+          forecasts_ahead$NNETAR <- NULL
+        } else {
+          forecastFit <- forecast(fit, h = input$forecast_horizon, level = 95, PI = T)
+          forecastFit_dt <- as.data.table(forecastFit)
+          forecasts_ahead$NNETAR[['Forecast']] <- forecastFit_dt
+        }
+        
+      }
+      
       if("ENSEMBLE" %in% Algorithms){
         forecasts_ahead$ENSEMBLE <- list()
         ensemble_list <- list()
-        fit_list <- list()
-        to_addup_algorithms <- setdiff(names(forecasts),"ENSEMBLE")
+        to_addup_algorithms <- setdiff(names(forecasts_ahead),"ENSEMBLE")
         for(alg in  to_addup_algorithms){
-          dt <- data.table(forecasts[[alg]][['Forecast']])
-          names(dt) <- names(forecasts[alg])
+          dt <- data.table(forecasts_ahead[[alg]][['Forecast']])
+          dt <- dt[,lapply(.SD, as.numeric)]
           ensemble_list[[alg]] <- dt
-          fit_list[[alg]] <- forecasts[[alg]]['Fit']
         }
-        ensemble_dt <- Reduce(f = cbind,ensemble_list,)
-        ensemble_dt[, `Point Forecast` := rowMeans(.SD)]
-        forecasts_ahead$ENSEMBLE[['Forecast']] <- ensemble_dt[, `Point Forecast`]
+        ensemble_dt <- rbindlist(ensemble_list)
+        ensemble_dt <- as.data.table(colMeans(ensemble_dt),keep.rownames = T)
+        ensemble_dt <- transpose(ensemble_dt,make.names = 'V1')
+        forecasts_ahead$ENSEMBLE[['Forecast']] <- ensemble_dt
       }
       
       
@@ -1624,7 +1732,7 @@ server <- function(input, output, session) {
     req(length(final_results) >= 1)
     
     Tabs <- names(reactiveVariables$Forecasts_ahead)
-    
+    browser()
     chart_lines <- sapply(Tabs, function(x){
       series <- as.vector(reactiveVariables$TotalSeries)
       forecasts <- reactiveVariables$Forecasts_ahead[[x]]$Forecast
@@ -1652,7 +1760,7 @@ server <- function(input, output, session) {
             class = "panel-body",
             highchart()  %>% 
               hc_xAxis(title = list(text = "Observation number"),
-                labels = list(style = list(color ='#fff')))%>%
+                       labels = list(style = list(color ='#fff')))%>%
               hc_yAxis(title = list(text = names(chart_lines[x])),
                        allowDecimals =F,
                        labels = list(style = list(color ='#fff'))) %>%
