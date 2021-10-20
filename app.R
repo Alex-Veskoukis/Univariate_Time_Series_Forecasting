@@ -14,6 +14,7 @@ library(highcharter)
 library(shinythemes)
 library(shinyalert)
 library(shinyjs)
+library(shinyFeedback)
 # library(shinybusy)
 
 source("helper_functions.R")
@@ -24,6 +25,7 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                 tags$style(style),
                 useShinyjs(),
                 useShinyalert(),
+                useShinyFeedback(), 
                 h2('Time Series Settings'),
                 inputPanel(
                   fileInput("i_file", "Upload your CSV file"),
@@ -141,7 +143,7 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                             tabPanel("THETA", icon = icon("line-chart"), h4("THETA"), 
                                      br(), 
                                      inputPanel(
-                                       selectInput(inputId = 'theta.model',
+                                       selectInput(inputId = 'theta_model',
                                                    label = 'Select model',
                                                    choices = c('Dynamic Optimised Theta Model', 
                                                                'Dynamic Standard Theta Model', 
@@ -153,7 +155,7 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                                                    label = 'Seasonality', 
                                                    choices = c('Multiplicative' = 'T', 'Additive'='additive', 'Unknown'='NULL'),
                                                    selected = 'NULL'),
-                                       conditionalPanel(condition = "input.theta.model != 'Standard Theta Method (STheta)'",
+                                       conditionalPanel(condition = "input.theta_model != 'Standard Theta Method (STheta)'",
                                                         selectInput(label = 'Optimization Method', inputId = 'opt.method', choices = c('Nelder-Mead', 'L-BFGS-B', 'SANN'),selected = 'Nelder-Mead'))
                                      ),
                                      value=5),
@@ -308,7 +310,12 @@ server <- function(input, output, session) {
       #            closeOnEsc = T,
       #            showConfirmButton = T,
       #            closeOnClickOutside = T)
-      shinyjs::info("An error occured reading the data. Make sure there are not missing values and the column contains only numbers.")
+      showToast(
+        "error", 
+        "An error occured reading the data. Make sure there are not missing values and the column contains only numbers.", 
+        .options = myToastOptions
+      )
+      # shinyjs::info("An error occured reading the data. Make sure there are not missing values and the column contains only numbers.")
     } else {
       if(input$frequency_known == 1 & !is.null(input$frequency)){
         reactiveVariables$TotalSeries <- ts(myTimeSeries[!is.na(myTimeSeries)], frequency = as.numeric(input$frequency))
@@ -433,36 +440,64 @@ server <- function(input, output, session) {
   ### Enseble selection                                                       ####
   
   output$ensemble_params <- renderUI({
+    # req(input$evaluation_type == 1)
+    # if(length(input$Algorithm) == 2){
+    #   checkboxInput('ensemble','Evaluate Ensemble')
+    # } else if (length(input$Algorithm) > 2){
+    #   tagList(checkboxInput('ensemble','Evaluate Ensemble',value = F),
+    #           selectInput(inputId = 'ensemble_algorithms',
+    #                       label = 'Pick Algorithms to ensemble',
+    #                       choices = input$Algorithm,
+    #                       multiple = T))
+    # } else {
+    #   NULL
+    # }
+    
     req(input$evaluation_type == 1)
-    if(length(input$Algorithm) == 2){
-      checkboxInput('ensemble','Evaluate Ensemble')
-    } else if (length(input$Algorithm) > 2){
-      tagList(checkboxInput('ensemble','Evaluate Ensemble',value = F),
-              selectInput(inputId = 'ensemble_algorithms',
-                          label = 'Pick Algorithms to ensemble',
-                          choices = input$Algorithm,
-                          multiple = T))
-    } else {
-      NULL
+    if(length(input$Algorithm) >= 2){
+      selectInput(inputId = 'ensemble_algorithms',
+                  label = 'Pick Algorithms to ensemble',
+                  choices = input$Algorithm,
+                  multiple = T)
     }
   })
   
+  
+  observeEvent(input$ensemble_algorithms, {
+    
+    if (length(input$ensemble_algorithms) < 2) {
+      showFeedbackWarning(
+        inputId = "ensemble_algorithms",
+        text = "Need at least 2 algorithms"
+      )  
+    } else {
+      hideFeedback("ensemble_algorithms")
+    }
+    
+  },ignoreNULL = T)
+  
   to_ensemble <- reactive({
     req(input$evaluation_type == 1)
-    req(input$ensemble)
-    if(length(input$Algorithm) == 2){
-      input$Algorithm
-    } else if(length(input$Algorithm) > 2){
-      if(length(input$ensemble_algorithms) == 0){
-        NULL
-      } else if(length(input$ensemble_algorithms) == 1){
-        NULL
-      } else {
-        input$ensemble_algorithms
-      }
+    # req(input$ensemble)
+    # if(length(input$Algorithm) == 2){
+    #   input$Algorithm
+    # } else if(length(input$Algorithm) > 2){
+    #   if(length(input$ensemble_algorithms) == 0){
+    #     NULL
+    #   } else if(length(input$ensemble_algorithms) == 1){
+    #     NULL
+    #   } else {
+    #     input$ensemble_algorithms
+    #   }
+    # } else {
+    #   NULL
+    # }
+    if(length(input$ensemble_algorithms) >= 2){
+      input$ensemble_algorithms
     } else {
       NULL
     }
+    
   })
   
   observeEvent(c(input$i_file,
@@ -588,6 +623,11 @@ server <- function(input, output, session) {
                                 stepwise = T))
           if (is(fit, 'try-error')) {
             forecasts$ARIMA <- NULL
+            showToast(
+              "error", 
+              "An error occured evaluating optimal ARIMA model.", 
+              .options = myToastOptions
+            )
           } else {
             forecastFit <- forecast(fit, length(reactiveVariables$Series_to_Evaluate))
             forecastFit_dt <- as.data.table(forecastFit)
@@ -618,6 +658,11 @@ server <- function(input, output, session) {
                                   seasonal = input$seasonal,
                                   stepwise = T))
             if (is(fit, 'try-error')) {
+              showToast(
+                "error", 
+                "An error occured evaluating optimal ARIMA with seasonality adjustment model.", 
+                .options = myToastOptions
+              )
               forecasts$ARIMA_seasonality_decomposition <- NULL
             } else {
               forecastFit <- forecast(fit, length(reactiveVariables$Series_to_Evaluate))
@@ -656,6 +701,11 @@ server <- function(input, output, session) {
                                             window = 5,
                                             initial = floor(length(reactiveVariables$TotalSeries)/2)) )
           if (is(forecastFit, 'try-error')) {
+            showToast(
+              "error", 
+              "An error occured evaluating optimal ARIMA model.", 
+              .options = myToastOptions
+            )
             forecasts$ARIMA <- NULL
           } else {
             if(input$horizon > 1){
@@ -681,6 +731,11 @@ server <- function(input, output, session) {
                                               initial = floor(length(seasonaly_adjusted)/2)) )
             if (is(forecastFit, 'try-error')) {
               forecasts$ARIMA_seasonality_decomposition <- NULL
+              showToast(
+                "error", 
+                "An error occured evaluating optimal ARIMA  with seasonality adjustment model", 
+                .options = myToastOptions
+              )
             } else {
               if(input$horizon > 1){
                 forecastFit_dt <- as.data.table(forecastFit)
@@ -709,6 +764,11 @@ server <- function(input, output, session) {
           fit <- try(ets(reactiveVariables$Series_to_Fit,model=model, allow.multiplicative.trend = input$allow.multiplicative.trend))
           if (is(fit, 'try-error')) {
             forecasts$ETS <- NULL
+            showToast(
+              "error", 
+              "An error occured evaluating optimal ETS  model", 
+              .options = myToastOptions
+            )
           } else {
             forecastFit <- forecast(fit, length(reactiveVariables$Series_to_Evaluate))
             forecastFit_dt <- as.data.table(forecastFit)
@@ -728,6 +788,11 @@ server <- function(input, output, session) {
             fit <- try(ets(seasonaly_adjusted_to_Fit,model=model, allow.multiplicative.trend = input$allow.multiplicative.trend))
             if (is(fit, 'try-error')) {
               forecasts$ETS_seasonality_decomposition <- NULL
+              showToast(
+                "error", 
+                "An error occured evaluating optimal ETS with seasonality adjustment model", 
+                .options = myToastOptions
+              )
             } else {
               forecastFit <- forecast(fit, length(reactiveVariables$Series_to_Evaluate))
               forecastFit <- forecastFit$mean + seasonal_to_add
@@ -755,6 +820,11 @@ server <- function(input, output, session) {
                                             initial = floor(length(reactiveVariables$TotalSeries)/2)) )
           if (is(forecastFit, 'try-error')) {
             forecasts$ETS <- NULL
+            showToast(
+              "error", 
+              "An error occured evaluating optimal ETS model", 
+              .options = myToastOptions
+            )
           } else {
             if(input$horizon > 1){
               forecastFit_dt <- as.data.table(forecastFit)
@@ -779,6 +849,11 @@ server <- function(input, output, session) {
                                               initial = floor(length(seasonaly_adjusted)/2)) )
             if (is(forecastFit, 'try-error')) {
               forecasts$ETS_seasonality_decomposition <- NULL
+              showToast(
+                "error", 
+                "An error occured evaluating optimal ETS with seasonality adjustment model", 
+                .options = myToastOptions
+              )
             } else {
               if(input$horizon > 1){
                 forecastFit_dt <- as.data.table(forecastFit)
@@ -805,6 +880,11 @@ server <- function(input, output, session) {
           fit <- try(tbats(reactiveVariables$Series_to_Fit,use.arma.errors = input$use.arma.errors))
           if (is(fit, 'try-error')) {
             forecasts$TBATS <- NULL
+            showToast(
+              "error", 
+              "An error occured evaluating TBATS  model", 
+              .options = myToastOptions
+            )
           } else {
             forecastFit <- forecast(fit, length(reactiveVariables$Series_to_Evaluate))
             forecastFit_dt <- as.data.table(forecastFit)
@@ -827,6 +907,11 @@ server <- function(input, output, session) {
                                             initial = floor(length(reactiveVariables$TotalSeries)/2)))
           if (is(forecastFit, 'try-error')) {
             forecasts$TBATS <- NULL
+            showToast(
+              "error", 
+              "An error occured evaluating TBATS  model", 
+              .options = myToastOptions
+            )
           } else {
             if(input$horizon > 1){
               forecastFit_dt <- as.data.table(forecastFit)
@@ -883,6 +968,11 @@ server <- function(input, output, session) {
                              seasonality.mode = input$seasonality.mode))
           if (is(fit, 'try-error')) {
             forecasts$PROPHET <- NULL
+            showToast(
+              "error", 
+              "An error occured evaluating PROPHET  model", 
+              .options = myToastOptions
+            )
           } else {
             future <- make_future_dataframe(fit, 
                                             periods = length(reactiveVariables$Series_to_Evaluate),
@@ -925,6 +1015,11 @@ server <- function(input, output, session) {
           
           if (is(forecastFit, 'try-error')) {
             forecasts$PROPHET <- NULL
+            showToast(
+              "error", 
+              "An error occured evaluating PROPHET  model", 
+              .options = myToastOptions
+            )
           } else {
             
             if(input$horizon > 1){
@@ -1062,7 +1157,7 @@ server <- function(input, output, session) {
                                      h = length(reactiveVariables$Series_to_Evaluate) + 1,
                                      opt.method = input$opt.method,
                                      s = input$s,
-                                     model = input$theta.model)
+                                     model = input$theta_model)
           
           forecasting_mean <- head(forecastFit$mean,length(reactiveVariables$Series_to_Evaluate))
           forecasts$THETA[['Fit']] <- forecastFit$method
@@ -1077,12 +1172,17 @@ server <- function(input, output, session) {
                                             h = input$horizon+1,
                                             opt.method = input$opt.method,
                                             s = input$s,
-                                            model = input$theta.model,
+                                            model = input$theta_model,
                                             window = 5,
                                             initial = floor(length(reactiveVariables$TotalSeries)/2))) 
           
           if (is(forecastFit, 'try-error')) {
             forecasts$THETA <-  NULL
+            showToast(
+              "error", 
+              "An error occured evaluating THETA  model", 
+              .options = myToastOptions
+            )
           } else{
             
             if(input$horizon > 1){
@@ -1118,6 +1218,11 @@ server <- function(input, output, session) {
                             repeats = input$repeats))
           if (is(fit, 'try-error')) {
             forecasts$NNETAR <- NULL
+            showToast(
+              "error", 
+              "An error occured evaluating NNETAR  model", 
+              .options = myToastOptions
+            )
           } else {
             forecastFit <- forecast(fit, length(reactiveVariables$Series_to_Evaluate))
             forecastFit_dt <- data.table(`Point Forecast` = forecastFit$mean)
@@ -1143,6 +1248,11 @@ server <- function(input, output, session) {
                                             initial = floor(length(reactiveVariables$TotalSeries)/2)))
           if (is(forecastFit, 'try-error')) {
             forecasts$NNETAR <- NULL
+            showToast(
+              "error", 
+              "An error occured evaluating NNETAR  model", 
+              .options = myToastOptions
+            )
           } else {
             if(input$horizon > 1){
               forecastFit_dt <- as.data.table(forecastFit)
@@ -1161,8 +1271,8 @@ server <- function(input, output, session) {
       }
       
       ### ENSEMPLE                                                                ####
-      
-      if(!is.null(input$ensemble)&& input$ensemble && !is.null(to_ensemble()) & input$evaluation_type == 1){
+      #!is.null(input$ensemble)&& input$ensemble &&
+      if( !is.null(to_ensemble()) & input$evaluation_type == 1){
         forecasts$ENSEMBLE <- list()
         ensemble_list <- list()
         fit_list <- list()
@@ -1395,7 +1505,12 @@ server <- function(input, output, session) {
       #            closeOnEsc = T,
       #            showConfirmButton = T,
       #            closeOnClickOutside = T)
-      shinyjs::info('Select a row from the results table')
+      showToast(
+        "info", 
+        'Select a row from the results table', 
+        .options = myToastOptions
+      )
+      # shinyjs::info('Select a row from the results table')
     } else {
       
       showModal(Modal(text = ""))
@@ -1663,7 +1778,7 @@ server <- function(input, output, session) {
                                    h = input$forecast_horizon,
                                    opt.method = input$opt.method,
                                    s = input$s,
-                                   model = input$theta.model)
+                                   model = input$theta_model)
         if(input$forecast_horizon > 1){
           forecasting_mean <- head(forecastFit$mean,input$forecast_horizon)
           forecasting_Lo <- head(as.data.table(forecastFit$lower)$`Lo 95`,input$forecast_horizon)
@@ -1732,7 +1847,6 @@ server <- function(input, output, session) {
     req(length(final_results) >= 1)
     
     Tabs <- names(reactiveVariables$Forecasts_ahead)
-    browser()
     chart_lines <- sapply(Tabs, function(x){
       series <- as.vector(reactiveVariables$TotalSeries)
       forecasts <- reactiveVariables$Forecasts_ahead[[x]]$Forecast

@@ -326,6 +326,20 @@ time_series_cv <- function (y, forecastfunction, h = 1, window = NULL, xreg = NU
 }
 
 
+# js <- "
+# $(document).ready(function(){
+#   $('#ensemble_algorithms').on('show.bs.select', function(){
+#     $('a[role=option]').on('click', function(e){
+#       var selections = $('#ensemble_algorithms').val();
+#       if(selections.length === 2 && $(this).hasClass('selected')){
+#         e.stopImmediatePropagation();
+#       };
+#     });
+#   }).on('hide.bs.select', function(){
+#     $('a[role=option]').off('click');
+#   });
+# });"
+
 
 style <- "
 .highcharts-plot-band-label{ color:#ffffff;}
@@ -342,3 +356,21 @@ input, textarea {
 background-color: #34495e!important;
 }
 }"
+
+myToastOptions <- list(
+  positionClass = "toast-top-right",
+  progressBar = FALSE,
+  timeOut = 3000,
+  closeButton = TRUE,
+  
+  # same as defaults
+  newestOnTop = TRUE,
+  preventDuplicates = FALSE,
+  showDuration = 300,
+  hideDuration = 1000,
+  extendedTimeOut = 1000,
+  showEasing = "linear",
+  hideEasing = "linear",
+  showMethod = "fadeIn",
+  hideMethod = "fadeOut"
+)
