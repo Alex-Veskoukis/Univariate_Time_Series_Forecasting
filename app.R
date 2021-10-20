@@ -675,6 +675,12 @@ server <- function(input, output, session) {
               forecasts$ARIMA_seasonality_decomposition[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
               forecasts$ARIMA_seasonality_decomposition[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
             }
+          }else{
+            showToast(
+              "warning", 
+              "The estimated frequency of the time-series is less than 2.", 
+              .options = myToastOptions
+            )
           }
         }else{
           ### cv
@@ -748,6 +754,12 @@ server <- function(input, output, session) {
                 forecasts$ARIMA_seasonality_decomposition[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
               }
             }
+          }else{
+            showToast(
+              "warning", 
+              "The estimated frequency of the time-series is less than 2.", 
+              .options = myToastOptions
+            )
           }
           
         }    
@@ -804,6 +816,12 @@ server <- function(input, output, session) {
               forecasts$ETS_seasonality_decomposition[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
               forecasts$ETS_seasonality_decomposition[['MAPE']] <- mape(reactiveVariables$Series_to_Evaluate, forecastFit_dt[, `Point Forecast`])
             }
+          }else{
+            showToast(
+              "warning", 
+              "The estimated frequency of the time-series is less than 2.", 
+              .options = myToastOptions
+            )
           }
         } else {
           ### cv
@@ -866,7 +884,13 @@ server <- function(input, output, session) {
                 forecasts$ETS_seasonality_decomposition[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
               }
             }
-          } 
+          } else{
+            showToast(
+              "warning", 
+              "The estimated frequency of the time-series is less than 2.", 
+              .options = myToastOptions
+            )
+          }
         }
       } 
       
