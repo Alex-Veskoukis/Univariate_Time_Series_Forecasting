@@ -269,8 +269,12 @@ server <- function(input, output, session) {
     if (is.null(inFile))
       return(NULL)
     mySeries <- fread(inFile$datapath, encoding = 'UTF-8')
+    if(nrow(mySeries) > 5){
     reactiveVariables$Series <- mySeries
     reactiveVariables$SeriesNames <- names(mySeries)
+    } else{
+      showToast(type = "error",message = 'To few observations', .options = myToastOptions)
+    }
   })
   
   observeEvent(reactiveVariables$SeriesNames,{
@@ -288,7 +292,12 @@ server <- function(input, output, session) {
       sliderInput('holdout', 'Hold-Out observations', value = 1, min = 1, max = floor(length(series)/2), step = 1)
     }
     else{
-      sliderInput('horizon', 'Horizon to evaluate', value = 1, min = 1, max = floor(length(series)/4), step = 1)
+      # tagList(
+        sliderInput('horizon', 'Horizon to evaluate', value = 1, min = 1, max = floor(length(series)/4), step = 1)
+      #,
+      #   sliderInput('window', 'Observations rolling window', value = 1, min = 1, max = floor(length(series)/4), step = 1),
+      #   sliderInput('initial', 'Initial observations history', value = 1, min = 1, max = floor(length(series)/4), step = 1)
+      # )
     }
   })
   
@@ -1211,7 +1220,123 @@ server <- function(input, output, session) {
       DT::selectRows(dt_proxy, NULL)
     }
   })
-  
+
+  output$dynamic_tabs <- shiny::renderUI({
+    req(reactiveVariables$check == T)
+   
+    req(reactiveVariables$evaluation_done)
+    final_results <- reactiveVariables$Forecasts
+    req(length(final_results) >= 1)
+    Tabs <- names(reactiveVariables$Forecasts)
+    
+    if(input$evaluation_type == 1){
+        chart_lines <- sapply(Tabs, function(x){
+          series <- as.vector(reactiveVariables$TotalSeries)
+          forecasts <- as.vector(reactiveVariables$Forecasts[[x]]$Forecast)
+          dt <- data.table(Series = series)
+          dt[,N := 1:.N]
+          dt[N > (nrow(dt) - length(forecasts)), Fitted := forecasts]
+        }, USE.NAMES = T, simplify = F)
+
+        gap <- lapply(seq_along(chart_lines), function(x){
+          shiny::tabPanel(
+            title = names(chart_lines[x]),
+            div(align = 'left',
+                class = "panel",
+                div(align = 'left',
+                    class = "panel-header",
+                    tags$h3(names(chart_lines[x]))
+                ),
+                div(align = 'left',
+                    class = "panel-body",
+                    highchart()  %>% 
+                      hc_xAxis(title = list(text = "Observation number"),
+                               plotLines = list(list(color = '#ffffff',
+                                                     width = 1, 
+                                                     zIndex = 1.67,
+                                                     dashStyle =  'Solid',
+                                                     value = (length(chart_lines[[x]]$Fitted)-sum(!is.na(chart_lines[[x]]$Fitted))))),
+                               labels = list(style = list(color ='#fff')))%>%
+                      hc_yAxis(title = list(text = names(chart_lines[x])),
+                               allowDecimals =F,
+                               labels = list(style = list(color ='#fff'))) %>%
+                      hc_tooltip(useHTML= T,
+                                 followPointer= T,
+                                 shared = T,
+                                 padding = 2,
+                                 animation= T,
+                                 table = F) %>%
+                      hc_add_series(chart_lines[[x]], type = "line", name = "Fitted" ,
+                                    color = '#F8766D',
+                                    hcaes(x = N, y = "Fitted"),
+                                    tooltip = list(pointFormat = "<b > Forecast :</b> {point.y:.0f} ")) %>%
+                      hc_add_series(chart_lines[[x]], type = "line", name = "Series",
+                                    hcaes(x = N, y = "Series"),
+                                    color = '#619CFF',
+                                    tooltip = list(pointFormat = "<b > Actual :</b> {point.y:.0f} ")) %>%
+                      hc_chart(zoomType = "xy") %>% 
+                      hc_add_theme(hc_theme_flatdark())
+                )
+            )
+          )
+        })
+        do.call(what = shiny::tabsetPanel, 
+                args = gap %>% append(list(type = "tabs", id   = "evaluation_charts")))
+    } else {
+          metrics <- reactiveVariables$Results 
+          if(!identical(colnames(metrics) , c('Algorithm', 'RMSE', 'MAE', 'MAPE'))) {
+          mae_metrics <- metrics[,c('Algorithm',colnames(metrics)[colnames(metrics) %like% 'MAE']), with = F]
+          rmse_metrics <- metrics[,c('Algorithm',colnames(metrics)[colnames(metrics) %like% 'RMSE']), with = F]
+          mape_metrics <- metrics[,c('Algorithm',colnames(metrics)[colnames(metrics) %like% 'MAPE']), with = F]
+          
+         
+          
+          mae_metrics <- melt(mae_metrics, measure.vars = c(colnames(metrics)[colnames(metrics) %like% 'MAE']))[
+            , c('variable', 'Metric') := .(gsub('MAE.','',variable),'MAE')]
+          rmse_metrics <- melt(rmse_metrics, measure.vars = c(colnames(metrics)[colnames(metrics) %like% 'RMSE']))[
+            , c('variable', 'Metric') := .(gsub('RMSE.','',variable),'RMSE')]
+          mape_metrics <- melt(mape_metrics, measure.vars = c(colnames(metrics)[colnames(metrics) %like% 'MAPE']))[
+            , c('variable', 'Metric') := .(gsub('MAPE.','',variable),'')]
+          
+          chart_list <- list('MAE' = mae_metrics, 'RMSE' = rmse_metrics, 'MAPE' = mape_metrics)
+          gap <- lapply(seq_along(chart_list), function(x){
+            shiny::tabPanel(
+              title = names(chart_list)[x],
+              div(align = 'left',
+                  class = "panel",
+                  div(align = 'left',
+                      class = "panel-header",
+                      tags$h3(names(chart_list)[x])
+                  ),
+                  div(align = 'left',
+                      class = "panel-body",
+                      highchart()  %>% 
+                        hc_xAxis(title = list(text = "Horizon"),
+                                 labels = list(style = list(color ='#fff')))%>%
+                        hc_yAxis(title = list(text = names(chart_list)[x]),
+                                 allowDecimals =F,
+                                 labels = list(style = list(color ='#fff'))) %>%
+                        hc_tooltip(useHTML= T,
+                                   followPointer= T,
+                                   shared = T,
+                                   padding = 2,
+                                   animation= T,
+                                   table = F) %>%
+                        hc_add_series(chart_list[[x]], type = "line",
+                                      hcaes(x = variable, y = value, group = Algorithm)) %>%
+                        hc_chart(zoomType = "xy") %>% 
+                        hc_add_theme(hc_theme_flatdark())
+                  )
+              )
+            )
+          })
+          do.call(what = shiny::tabsetPanel, 
+                  args = gap %>% append(list(type = "tabs", id   = "evaluation_charts")))
+          }
+    }
+    
+  })
+
   output$forecast_widget_container <- renderUI({
     req(reactiveVariables$check == T)
     req(reactiveVariables$evaluation_done)
@@ -1230,78 +1355,6 @@ server <- function(input, output, session) {
     req(length(final_results) >= 1)
     shiny::uiOutput("dynamic_tabs2")
   })
-  
-  output$dynamic_tabs <- shiny::renderUI({
-    req(reactiveVariables$check == T)
-    req(input$evaluation_type == 1)
-    req(reactiveVariables$evaluation_done)
-    final_results <- reactiveVariables$Forecasts
-    req(length(final_results) >= 1)
-    Tabs <- names(reactiveVariables$Forecasts)
-    
-
-    chart_lines <- sapply(Tabs, function(x){
-      series <- as.vector(reactiveVariables$TotalSeries)
-      forecasts <- as.vector(reactiveVariables$Forecasts[[x]]$Forecast)
-      dt <- data.table(Series = series)
-      dt[,N := 1:.N]
-      dt[N > (nrow(dt) - length(forecasts)), Fitted := forecasts]
-    }, USE.NAMES = T, simplify = F)
-    
-    
-    
-    
-    gap <- lapply(seq_along(chart_lines), function(x){
-      
-      shiny::tabPanel(
-        title = names(chart_lines[x]),
-        div(align = 'left',
-            
-            class = "panel",
-            div(align = 'left',
-                class = "panel-header",
-                tags$h3(names(chart_lines[x]))
-            ),
-            div(align = 'left',
-                class = "panel-body",
-                highchart()  %>% 
-                  hc_xAxis(title = list(text = "Observation number"),
-                           plotLines = list(list(color = '#ffffff',
-                                                 width = 1, 
-                                                 zIndex = 1.67,
-                                                 dashStyle =  'Solid',
-                                                 value = (length(chart_lines[[x]]$Fitted)-sum(!is.na(chart_lines[[x]]$Fitted))))),
-                           labels = list(style = list(color ='#fff')))%>%
-                  hc_yAxis(title = list(text = names(chart_lines[x])),
-                           allowDecimals =F,
-                           labels = list(style = list(color ='#fff'))) %>%
-                  hc_tooltip(useHTML= T,
-                             followPointer= T,
-                             shared = T,
-                             padding = 2,
-                             animation= T,
-                             table = F) %>%
-                  hc_add_series(chart_lines[[x]], type = "line", name = "Fitted" ,
-                                color = '#F8766D',
-                                hcaes(x = N, y = "Fitted"),
-                                tooltip = list(pointFormat = "<b > Forecast :</b> {point.y:.0f} ")) %>%
-                  hc_add_series(chart_lines[[x]], type = "line", name = "Series",
-                                hcaes(x = N, y = "Series"),
-                                color = '#619CFF',
-                                tooltip = list(pointFormat = "<b > Actual :</b> {point.y:.0f} ")) %>%
-                  hc_chart(zoomType = "xy") %>% 
-                  hc_add_theme(hc_theme_flatdark())
-            )
-        )
-      )
-      
-      
-    })
-    do.call(what = shiny::tabsetPanel, 
-            args = gap %>% append(list(type = "tabs", id   = "evaluation_charts")))
-    
-  })
-  
   ##  .................. #< 6a18d31a9e8543e6ad7168bda94b7535 ># ..................
   ##  Forecasting                                                             ####
   
