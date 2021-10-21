@@ -36,113 +36,56 @@ Modal <- function(text){
              #              !important;
              # filter: alpha(opacity=100) !important;
              # background: #fff;}")),
-             tags$div(class="sk-folding-cube",
-                      tags$div(class = 'sk-cube1 sk-cube'),
-                      tags$div(class = 'sk-cube2 sk-cube'),
-                      tags$div(class = 'sk-cube3 sk-cube'),
-                      tags$div(class = 'sk-cube4 sk-cube')
-             ) ,
+             # tags$div(class="loader") ,
+             HTML("<div class='lds-facebook'><div></div><div></div><div></div></div>"),
              tags$div(h4(strong(paste0(text)))))
            ,
            tags$head(tags$style(type="text/css", 
                                 "
-.sk-folding-cube {
-z-index:1000;
-  margin: 20px auto;
-  width: 100px;
-  height: 100px;
+.lds-facebook {
+  display: inline-block;
   position: relative;
-  -webkit-transform: rotateZ(45deg);
-          transform: rotateZ(45deg);
+  width: 80px;
+  height: 80px;
 }
-
-.sk-folding-cube .sk-cube {
-z-index:1000;
-  float: left;
-  width: 50%;
-  height: 50%;
-  position: relative;
-  -webkit-transform: scale(1.1);
-      -ms-transform: scale(1.1);
-          transform: scale(1.1); 
-}
-.sk-folding-cube .sk-cube:before {
-   font-size: 350%;
-z-index:1000;
-  content: '';
+.lds-facebook div {
+  display: inline-block;
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: #00b0f0;
-  -webkit-animation: sk-foldCubeAngle 2.4s infinite linear both;
-          animation: sk-foldCubeAngle 2.4s infinite linear both;
-  -webkit-transform-origin: 100% 100%;
-      -ms-transform-origin: 100% 100%;
-          transform-origin: 100% 100%;
+  left: 8px;
+  width: 16px;
+  background: #fff;
+  animation: lds-facebook 1.2s cubic-bezier(0, 0.5, 0.5, 1) infinite;
 }
-.sk-folding-cube .sk-cube2 {
-  -webkit-transform: scale(1.1) rotateZ(90deg);
-          transform: scale(1.1) rotateZ(90deg);
+.lds-facebook div:nth-child(1) {
+  left: 8px;
+  animation-delay: -0.24s;
 }
-.sk-folding-cube .sk-cube3 {
-  -webkit-transform: scale(1.1) rotateZ(180deg);
-          transform: scale(1.1) rotateZ(180deg);
+.lds-facebook div:nth-child(2) {
+  left: 32px;
+  animation-delay: -0.12s;
 }
-.sk-folding-cube .sk-cube4 {
-  -webkit-transform: scale(1.1) rotateZ(270deg);
-          transform: scale(1.1) rotateZ(270deg);
+.lds-facebook div:nth-child(3) {
+  left: 56px;
+  animation-delay: 0;
 }
-.sk-folding-cube .sk-cube2:before {
-  -webkit-animation-delay: 0.3s;
-          animation-delay: 0.3s;
-}
-.sk-folding-cube .sk-cube3:before {
-  -webkit-animation-delay: 0.6s;
-          animation-delay: 0.6s; 
-}
-.sk-folding-cube .sk-cube4:before {
-  -webkit-animation-delay: 0.9s;
-          animation-delay: 0.9s;
-}
-@-webkit-keyframes sk-foldCubeAngle {
-  0%, 10% {
-    -webkit-transform: perspective(140px) rotateX(-180deg);
-            transform: perspective(140px) rotateX(-180deg);
-    opacity: 0; 
-  } 25%, 75% {
-    -webkit-transform: perspective(140px) rotateX(0deg);
-            transform: perspective(140px) rotateX(0deg);
-    opacity: 1; 
-  } 90%, 100% {
-    -webkit-transform: perspective(140px) rotateY(180deg);
-            transform: perspective(140px) rotateY(180deg);
-    opacity: 0; 
-  } 
-}
-
-@keyframes sk-foldCubeAngle {
-  0%, 10% {
-    -webkit-transform: perspective(140px) rotateX(-180deg);
-            transform: perspective(140px) rotateX(-180deg);
-    opacity: 0; 
-  } 25%, 75% {
-    -webkit-transform: perspective(140px) rotateX(0deg);
-            transform: perspective(140px) rotateX(0deg);
-    opacity: 1; 
-  } 90%, 100% {
-    -webkit-transform: perspective(140px) rotateY(180deg);
-            transform: perspective(140px) rotateY(180deg);
-    opacity: 0; 
+@keyframes lds-facebook {
+  0% {
+    top: 8px;
+    height: 64px;
+  }
+  50%, 100% {
+    top: 24px;
+    height: 32px;
   }
 }
 
 
 
 "))
+           
   )
 }#modal
+
 chunk <- function(x, n, force.number.of.groups = TRUE, len = length(x), groups = trunc(len/n), overflow = len%%n) { 
   if(force.number.of.groups) {
     f1 <- as.character(sort(rep(1:n, groups)))
