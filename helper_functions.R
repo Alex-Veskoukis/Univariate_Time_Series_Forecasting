@@ -390,7 +390,8 @@ time_series_cv2 <- function(y, forecastfunction, h = 1, window = NULL, initial =
   }
 }
 time_series_cv2_par <- function(y, forecastfunction, h = 1, window = NULL, initial = 0, ...){
-  cl <- makeCluster(detectCores()-1)
+  # max(1,detectCores()-1)
+  cl <- makeCluster(1)
   registerDoParallel(cl)
   on.exit(stopCluster(cl))
   y <- as.ts(y)
@@ -427,7 +428,7 @@ time_series_cv2_par <- function(y, forecastfunction, h = 1, window = NULL, initi
     error_fun(i=i, y = y, window = NULL, forecastfunction = forecastfunction, h=h, ...)
   }
   
-  length(e) <- suppressWarnings(prod(dim(matrix(x ,nrow = n, ncol=h, byrow = T))))
+  length(e) <- suppressWarnings(prod(dim(matrix(e ,nrow = n, ncol=h, byrow = T))))
   final_result <- matrix(data = e, nrow = n, ncol=h, byrow = T)
   if (h == 1) {
     return(final_result[, 1L])
@@ -439,7 +440,8 @@ time_series_cv2_par <- function(y, forecastfunction, h = 1, window = NULL, initi
 
 
 time_series_cv_prophet_par <- function(y, forecastfunction, h = 1, window = NULL, initial = 0, freq = freq, ...){
-  cl <- makeCluster(detectCores()-1)
+  # max(1,detectCores()-1)
+  cl <- makeCluster(1)
   registerDoParallel(cl)
   on.exit(stopCluster(cl))
   y <- as.ts(y)
@@ -468,7 +470,7 @@ time_series_cv_prophet_par <- function(y, forecastfunction, h = 1, window = NULL
     error_fun_prophet(i=i, y = y, window = NULL, forecastfunction = forecastfunction, h=h, freq = freq,...)
   }
   
-  length(e) <- suppressWarnings(prod(dim(matrix(x ,nrow = n, ncol=h, byrow = T))))
+  length(e) <- suppressWarnings(prod(dim(matrix(e ,nrow = n, ncol=h, byrow = T))))
   final_result <- matrix(data = e, nrow = n, ncol=h, byrow = T)
   if (h == 1) {
     return(final_result[, 1L])
