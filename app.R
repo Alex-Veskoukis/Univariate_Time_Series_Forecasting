@@ -844,14 +844,18 @@ server <- function(input, output, session) {
               check <- data.table(valid_frequency = valid_frequency, freq_int = freq_int, name = names(valid_frequency))
               check[,diff := abs(valid_frequency - freq_int)]
               freq <- check[which.min(diff),name]
-              dt <- data.table(ds=seq.Date(from = Sys.Date(),
-                                           length.out = length(reactiveVariables$TotalSeries),
-                                           by = freq),
-                               y = reactiveVariables$TotalSeries)
-              forecastFit <- try(crossValidationProphet(dt = dt, 
-                                                        horizon = input$horizon,
-                                                        window = 5,
-                                                        initial = floor(length(reactiveVariables$TotalSeries)/2)))
+
+              forecastFit <- try(time_series_cv_prophet_par(y = reactiveVariables$TotalSeries, 
+                                                            forecastfunction = forcast.prophet,
+                                                            h = input$horizon, 
+                                                            freq = freq,
+                                                            growth = input$growth,
+                                                            n.changepoints = input$n.changepoints,
+                                                            changepoint.range = input$changepoint.range, 
+                                                            yearly.seasonality = input$yearly.seasonality,
+                                                            weekly.seasonality = input$weekly.seasonality,
+                                                            daily.seasonality = input$daily.seasonality,
+                                                            seasonality.mode = input$seasonality.mode))
               
               if (is(forecastFit, 'try-error')) {
                 forecasts$PROPHET <- NULL
@@ -863,13 +867,14 @@ server <- function(input, output, session) {
               } else {
                 
                 if(input$horizon > 1){
-                  forecasts$PROPHET[['MAE']]  <- forecastFit[Metric == 'MAE', !c('Metric')] 
-                  forecasts$PROPHET[['RMSE']]  <- forecastFit[Metric == 'RMSE', !c('Metric')] 
-                  forecasts$PROPHET[['MAPE']]  <- forecastFit[Metric == 'MAPE', !c('Metric')] 
+                  forecastFit_dt <- as.data.table(forecastFit)
+                  forecasts$PROPHET[['MAE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x), na.rm = T)})][,1:input$horizon]
+                  forecasts$PROPHET[['RMSE']]  <- forecastFit_dt[,lapply(.SD, function(x){ sqrt(mean(x^2, na.rm=TRUE))})][,1:input$horizon]
+                  forecasts$PROPHET[['MAPE']]  <- forecastFit_dt[,lapply(.SD, function(x){ mean(abs(x/reactiveVariables$TotalSeries), na.rm = T)})][,1:input$horizon]
                 } else {
-                  forecasts$PROPHET[['MAE']]  <- forecastFit[Metric == 'MAE', !c('Metric')][[1]] 
-                  forecasts$PROPHET[['RMSE']]  <- forecastFit[Metric == 'RMSE', !c('Metric')][[1]] 
-                  forecasts$PROPHET[['MAPE']]  <- forecastFit[Metric == 'MAPE', !c('Metric')][[1]]  
+                  forecasts$PROPHET[['MAE']]  <- mean(abs(forecastFit), na.rm = T)
+                  forecasts$PROPHET[['RMSE']] <- sqrt(mean(forecastFit^2, na.rm=TRUE))
+                  forecasts$PROPHET[['MAPE']] <- mean(abs(forecastFit/reactiveVariables$TotalSeries), na.rm = T)
                 }
                 
               }

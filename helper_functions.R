@@ -338,6 +338,19 @@ forecast.ETS <-function(x,h, ... ){
   fit = ets(x, ...)
   forecast(fit,h)
 }
+forcast.prophet <- function(y, h, freq,...){
+  dt <- data.table(ds=seq.Date(from = Sys.Date(),
+                               length.out = length(y),
+                               by = freq),
+                   y = y)
+  fit <- try(prophet(df = dt, ...))
+  future <- make_future_dataframe(fit, 
+                                  periods = h,
+                                  freq = freq,
+                                  include_history = F)
+  forecast <- predict(fit, future)
+  forecast
+}
 
 time_series_cv2 <- function(y, forecastfunction, h = 1, window = NULL, initial = 0, ...){
   y <- as.ts(y)
@@ -376,7 +389,6 @@ time_series_cv2 <- function(y, forecastfunction, h = 1, window = NULL, initial =
     return(e)
   }
 }
-
 time_series_cv2_par <- function(y, forecastfunction, h = 1, window = NULL, initial = 0, ...){
   cl <- makeCluster(detectCores()-1)
   registerDoParallel(cl)
@@ -424,54 +436,47 @@ time_series_cv2_par <- function(y, forecastfunction, h = 1, window = NULL, initi
     return(final_result)
   }
 }
-forcast.prophet <- function(x,h,freq,...){
-  fit <- try(prophet(df = x, ...))
-  future <- make_future_dataframe(fit, 
-                                  periods = h,
-                                  freq = freq,
-                                  include_history = F)
-  forecast <- predict(fit, future)
-  forecast
-}
 
 
-
-
-time_series_cv_prophet <- function(y, forecastfunction, h = 1, window = NULL, initial = 0, ...){
-  freq_int <- findfrequency(dt$y)
-  valid_frequency <-  c( 1, 7, 12, 4, 365)
-  names(valid_frequency) <-  c('day', 'week', 'month', 'quarter', 'year')
-  check <- data.table(valid_frequency = valid_frequency, 
-                      freq_int = freq_int, 
-                      name = names(valid_frequency))
-  check[,diff := abs(valid_frequency - freq_int)]
-  freq <- check[which.min(diff),name]
-  
-  y <- ts(dt$y, frequency = freq_int)
+time_series_cv_prophet_par <- function(y, forecastfunction, h = 1, window = NULL, initial = 0, freq = freq, ...){
+  cl <- makeCluster(detectCores()-1)
+  registerDoParallel(cl)
+  on.exit(stopCluster(cl))
+  y <- as.ts(y)
   n <- length(y)
-  e <- ts(matrix(NA_real_, nrow = n, ncol = h))
   if (initial >= n) 
     stop("initial period too long")
   if (!is.null(window) && window >= n-1 - initial) 
     stop("window period too long")
   if(h >=    n-2 - initial)
     stop("horizon too long")
-  tsp(e) <- tsp(y)
-  
-  indx <- if (is.null(window))  seq(1 + initial, n - 1L) else seq(from = window + initial, n - 1L, by = 1L)
-  for (i in indx) {
-    start <-  if(is.null(window)) 3 else if (i - window >= 0L) i - window + 3L else stop("small window")
-    y_subset <- dt[start:i]
-    fc <- try(suppressWarnings(forecastfunction(y_subset,h = h, freq = freq, ...)), silent = TRUE)
+  error_fun_prophet <- function(i, y = y, window = window, forecastfunction = forecastfunction, h = h, freq = freq, ...){
+    if(is.null(window)){
+      proper_start <- 1 
+    } else if (i - window >= 0L) {
+      proper_start <- i - window + 1L 
+    } else {
+      stop("small window")
+    }
+    y_subset <- forecast:::subset.ts(y, start = proper_start, end = i)
+    fc <- try(suppressWarnings(forecastfunction(y = y_subset,h = h,freq = freq,...)), silent = TRUE)
     if (!is.element("try-error", class(fc))) {
-      e[i, ] <- y[i + (1:h)] - fc$yhat
+      y[i + (1:h)] - fc$yhat
     }
   }
+  e <- foreach(i = indx, .combine = 'c', .packages = c('forecast','prophet','data.table'),.verbose = T)%dopar% {
+    error_fun_prophet(i=i, y = y, window = NULL, forecastfunction = forecastfunction, h=h, freq = freq,...)
+  }
+  
+  length(e) <- suppressWarnings(prod(dim(matrix(x ,nrow = n, ncol=h, byrow = T))))
+  final_result <- matrix(data = e, nrow = n, ncol=h, byrow = T)
   if (h == 1) {
-    return(e[, 1L])
+    return(final_result[, 1L])
   } else {
-    colnames(e) <- paste("h=", 1:h, sep = "")
-    return(e)
+    colnames(final_result) <- paste("h=", 1:h, sep = "")
+    return(final_result)
   }
 }
+
+
 
