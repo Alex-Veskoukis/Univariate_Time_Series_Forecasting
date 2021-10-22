@@ -78,9 +78,6 @@ Modal <- function(text){
     height: 32px;
   }
 }
-
-
-
 "))
            
   )
@@ -298,3 +295,183 @@ myToastOptions <- list(
   showMethod = "fadeIn",
   hideMethod = "fadeOut"
 )
+
+
+forecast.ARIMA <-function(x,h,...){ 
+  fit = auto.arima(x,...)
+  forecast(fit,h)
+}
+forecast.THETA <- function(y, model, opt.method, s, h, ...){
+  if(length(y) <= frequency(y)){
+    if(s=='NULL'){
+      ss <- 'additive'
+    }else if(s=='additive'){
+      ss <- 'additive'
+    }else{
+      ss <- TRUE
+    }
+  } else {
+    if(s=='NULL'){
+      ss <- NULL
+    }else if(s=='additive'){
+      ss <- 'additive'
+    }else{
+      ss <- TRUE
+    }
+  }
+  switch(model,
+         'Dynamic Optimised Theta Model' = dotm(y=y, opt.method=opt.method, s=ss, h=h,...), 
+         'Dynamic Standard Theta Model' = dstm(y=y, opt.method=opt.method, s=ss, h=h, ...), 
+         'Optimised Theta Model' = otm(y=y, opt.method=opt.method, s=ss, h=h, ...),
+         'Standard Theta Model' = stm(y=y, opt.method=opt.method, s=ss, h=h, ...),
+         "Standard Theta Method (STheta)" = stheta(y=y,  s=ss, h=h, ...))
+}
+forecast.NNETAR <-function(x,h, ...){ 
+  fit = nnetar(y = x, ...)
+  forecast(fit,h)
+}
+forecast.TBATS <-function(x,h, ...){ 
+  fit = tbats(x, ...)
+  forecast(fit,h)
+}
+forecast.ETS <-function(x,h, ... ){ 
+  fit = ets(x, ...)
+  forecast(fit,h)
+}
+
+time_series_cv2 <- function(y, forecastfunction, h = 1, window = NULL, initial = 0, ...){
+  y <- as.ts(y)
+  n <- length(y)
+  e <- ts(matrix(NA_real_, nrow = n, ncol = h))
+  if (initial >= n) 
+    stop("initial period too long")
+  if (!is.null(window) && window >= n-1 - initial) 
+    stop("window period too long")
+  if(h >= n-2 - initial)
+    stop("horizon too long")
+  tsp(e) <- tsp(y)
+  if (is.null(window)){
+    indx <- seq(1 + initial, n - 1L) 
+  } else {
+    indx <- seq(from = window + initial, to = n - 1L, by = 1L)
+  }
+  for (i in indx) {
+    if(is.null(window)){
+      proper_start <- 1 
+    } else if (i - window >= 0L) {
+      proper_start <- i - window + 1L 
+    } else {
+      stop("small window")
+    }
+    y_subset <- subset(y, start = proper_start, end = i)
+    fc <- try(suppressWarnings(forecastfunction(y_subset,h = h,...)), silent = TRUE)
+    if (!is.element("try-error", class(fc))) {
+      e[i, ] <- y[i + (1:h)] - fc$mean
+    }
+  }
+  if (h == 1) {
+    return(e[, 1L])
+  } else {
+    colnames(e) <- paste("h=", 1:h, sep = "")
+    return(e)
+  }
+}
+
+time_series_cv2_par <- function(y, forecastfunction, h = 1, window = NULL, initial = 0, ...){
+  cl <- makeCluster(detectCores()-1)
+  registerDoParallel(cl)
+  on.exit(stopCluster(cl))
+  y <- as.ts(y)
+  n <- length(y)
+  e <- ts(matrix(NA_real_, nrow = n, ncol = h))
+  if (initial >= n) 
+    stop("initial period too long")
+  if (!is.null(window) && window >= n-1 - initial) 
+    stop("window period too long")
+  if(h >= n-2 - initial)
+    stop("horizon too long")
+  
+  if (is.null(window)){
+    indx <- seq(1 + initial, n - 1L) 
+  } else {
+    indx <- seq(from = window + initial, to = n - 1L, by = 1L)
+  }
+  
+  error_fun <- function(i, y = y, window = window, forecastfunction = forecastfunction, h = h, ...){
+    if(is.null(window)){
+      proper_start <- 1 
+    } else if (i - window >= 0L) {
+      proper_start <- i - window + 1L 
+    } else {
+      stop("small window")
+    }
+    y_subset <- forecast:::subset.ts(y, start = proper_start, end = i)
+    fc <- try(suppressWarnings(forecastfunction(y_subset,h = h, ...)), silent = TRUE)
+    if (!is.element("try-error", class(fc))) {
+      y[i + (1:h)] - fc$mean
+    }
+  }
+  e <- foreach(i = indx, .combine = 'c', .packages = c('forecast','forecTheta'))%dopar% {
+    error_fun(i=i, y = y, window = NULL, forecastfunction = forecastfunction, h=h, ...)
+  }
+  
+  length(e) <- suppressWarnings(prod(dim(matrix(x ,nrow = n, ncol=h, byrow = T))))
+  final_result <- matrix(data = e, nrow = n, ncol=h, byrow = T)
+  if (h == 1) {
+    return(final_result[, 1L])
+  } else {
+    colnames(final_result) <- paste("h=", 1:h, sep = "")
+    return(final_result)
+  }
+}
+forcast.prophet <- function(x,h,freq,...){
+  fit <- try(prophet(df = x, ...))
+  future <- make_future_dataframe(fit, 
+                                  periods = h,
+                                  freq = freq,
+                                  include_history = F)
+  forecast <- predict(fit, future)
+  forecast
+}
+
+
+
+
+time_series_cv_prophet <- function(y, forecastfunction, h = 1, window = NULL, initial = 0, ...){
+  freq_int <- findfrequency(dt$y)
+  valid_frequency <-  c( 1, 7, 12, 4, 365)
+  names(valid_frequency) <-  c('day', 'week', 'month', 'quarter', 'year')
+  check <- data.table(valid_frequency = valid_frequency, 
+                      freq_int = freq_int, 
+                      name = names(valid_frequency))
+  check[,diff := abs(valid_frequency - freq_int)]
+  freq <- check[which.min(diff),name]
+  
+  y <- ts(dt$y, frequency = freq_int)
+  n <- length(y)
+  e <- ts(matrix(NA_real_, nrow = n, ncol = h))
+  if (initial >= n) 
+    stop("initial period too long")
+  if (!is.null(window) && window >= n-1 - initial) 
+    stop("window period too long")
+  if(h >=    n-2 - initial)
+    stop("horizon too long")
+  tsp(e) <- tsp(y)
+  
+  indx <- if (is.null(window))  seq(1 + initial, n - 1L) else seq(from = window + initial, n - 1L, by = 1L)
+  for (i in indx) {
+    start <-  if(is.null(window)) 3 else if (i - window >= 0L) i - window + 3L else stop("small window")
+    y_subset <- dt[start:i]
+    fc <- try(suppressWarnings(forecastfunction(y_subset,h = h, freq = freq, ...)), silent = TRUE)
+    if (!is.element("try-error", class(fc))) {
+      e[i, ] <- y[i + (1:h)] - fc$yhat
+    }
+  }
+  if (h == 1) {
+    return(e[, 1L])
+  } else {
+    colnames(e) <- paste("h=", 1:h, sep = "")
+    return(e)
+  }
+}
+
