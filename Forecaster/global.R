@@ -18,6 +18,13 @@ library(shinyFeedback)
 library(foreach)
 library(doParallel)
 library(smooth)
+library(quadprog)
+
+crossprod.na.rm <- function(x, y, na=0) {
+  crossprod(replace(x, is.na(x), na), 
+            replace(y, is.na(y), na)
+  )
+}
 
 Modal <- function(text){
   tags$div(id='modal1',

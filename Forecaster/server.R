@@ -142,10 +142,11 @@ server <- function(input, output, session) {
   
   output$ensemble_params <- renderUI({
     if(length(input$Algorithm) >= 2){
-      selectInput(inputId = 'ensemble_algorithms',
+     tagList(selectInput(inputId = 'ensemble_algorithms',
                   label = 'Pick Algorithms to ensemble',
                   choices = input$Algorithm,
-                  multiple = T)
+                  multiple = T),
+             checkboxInput('optim','Optimize ensemble wights'))
     }
   })
   
@@ -467,7 +468,54 @@ server <- function(input, output, session) {
               fit_list[[alg]] <- forecasts[[alg]]['Fit']
             }
             ensemble_dt <- Reduce(f = cbind,ensemble_list,)
-            ensemble_dt[, `Point Forecast` := rowMeans(.SD)]
+            if(input$optim){
+              product <- try({
+              X <- as.matrix(ensemble_dt)
+              y <- as.matrix(as.vector(reactiveVariables$Series_to_Evaluate))
+              w <- rep(1/ncol(X),ncol(X))
+              ##################################################
+              # From solve.QP description
+              # solving quadratic programming problems of the form :
+              # min(-d^T b + 1/2 b^T D b) 
+              # with the constraints:
+              # A^T b >= b_0.
+              
+              # Your problem
+              # Minimize       || Xw - y ||^2     => Minimize 1/2 w'X'Xw - (y'X)w  => D=X'X , d= X'y
+              # Constraint w>0,w<1, sum(w)=1      => A'w >= b0
+              ##################################################
+              d <- t(X) %*% y
+              D <- t(X) %*% X
+              A <- cbind(rep(1,ncol(X)),diag(ncol(X))) #constraint LHS
+              b0 <- c(1,numeric(ncol(X))) # constraint RHS
+              soln <- solve.QP(D,d,A,b0,meq = 1)
+              w1 <- soln$solution  # Your model wieghts
+              w1[w1<0] <- 0
+              res <- X %*% w1
+              res[,1]
+              })
+              if (!is(product, 'try-error')) {
+                names(w1) <- colnames(ensemble_dt)
+                forecasts$ENSEMBLE[['Weights']] <- w1
+                ensemble_dt[, `Point Forecast` := product]
+              } else {
+                showToast(
+                  "error", 
+                  "Unable to optimize Ensemble, calculating simple average", 
+                  .options = myToastOptions
+                )
+                w <-  rep(1/ncol(ensemble_dt),ncol(ensemble_dt))
+                names(w) <- colnames(ensemble_dt)
+                forecasts$ENSEMBLE[['Weights']] <- w
+                ensemble_dt[, `Point Forecast` := rowMeans(.SD)]
+              }
+            } else {
+              w <-  rep(1/ncol(ensemble_dt),ncol(ensemble_dt))
+              names(w) <- colnames(ensemble_dt)
+              forecasts$ENSEMBLE[['Weights']] <- w
+              ensemble_dt[, `Point Forecast` := rowMeans(.SD)]
+            }
+            
             forecasts$ENSEMBLE[['Forecast']] <- ensemble_dt[, `Point Forecast`]
             forecasts$ENSEMBLE[['MAE']]  <- mae(reactiveVariables$Series_to_Evaluate, ensemble_dt[, `Point Forecast`])
             forecasts$ENSEMBLE[['RMSE']] <- rmse(reactiveVariables$Series_to_Evaluate, ensemble_dt[, `Point Forecast`])
@@ -646,8 +694,14 @@ server <- function(input, output, session) {
       forecasts_ahead <- list()
       tryCatch({
         Result_dt <- reactiveVariables$Results
-        Algorithms <- reactiveVariables$Results[input$results_rows_selected,Algorithm]
-        
+        models_to_forecast <- reactiveVariables$Results[input$results_rows_selected,Algorithm]
+        if("ENSEMBLE" %in% models_to_forecast){
+          ensemlbed_algorithms <- to_ensemble()
+          Algorithms <- unique(c(ensemlbed_algorithms,
+                               reactiveVariables$Results[input$results_rows_selected,Algorithm]))
+        }else{
+          Algorithms <- reactiveVariables$Results[input$results_rows_selected,Algorithm]
+        }
         #### . . . . . . . . .. #< 2f343b2d516182ef8966454ae20d2a53 ># . . . . . . . . ..
         #### DRIFT                                                                  ####
         
@@ -820,7 +874,7 @@ server <- function(input, output, session) {
         ### . . . . . . . . .. #< 3de4c0e2af3c3c1fe43a27be80c5154f ># . . . . . . . . ..
         
         ### CES                                                                     ####
-        if("CES" %in% input$Algorithm) {
+        if("CES" %in% Algorithms) {
           message('Evaluating CES')
           forecasts_ahead$CES <- list()
           model <- reactiveVariables$Forecasts[["CES"]][['Fit']]
@@ -843,11 +897,13 @@ server <- function(input, output, session) {
           means_list <- list()
           upper_list <- list()
           lower_list <- list()
+        
           to_addup_algorithms <- setdiff(names(forecasts_ahead),"ENSEMBLE")
-          
           for(alg in  to_addup_algorithms){
             dt <- data.table(forecasts_ahead[[alg]][['Forecast']])
             dt <- dt[,lapply(.SD, as.numeric)]
+            dt[is.na(`Hi 95`), 'Hi 95' :=  `Point Forecast`]
+            dt[is.na(`Lo 95`), 'Lo 95' :=  `Point Forecast`]
             means_list[[alg]] <- dt[,.(`Point Forecast`)]
             upper_list[[alg]] <- dt[,.(`Hi 95`)]
             lower_list[[alg]] <- dt[,.(`Lo 95`)]
@@ -856,15 +912,19 @@ server <- function(input, output, session) {
           means_dt <- Reduce(cbind,means_list)
           upper_dt <- Reduce(cbind,upper_list)
           lower_dt <- Reduce(cbind,lower_list)
-          
-          ensemble_dt <- data.table('Point Forecast' = rowMeans(means_dt, na.rm = T),
-                                    'Lo 95' = rowMeans(lower_dt, na.rm = T),
-                                    'Hi 95' = rowMeans(upper_dt, na.rm = T))
+
+          w <-  reactiveVariables$Forecasts$ENSEMBLE[['Weights']] 
+          pf <- as.matrix(replace(means_dt, is.na(means_dt), 1)) %*% w
+          lb <- as.matrix(replace(lower_dt, is.na(lower_dt), means_dt)) %*% w
+          ub <- as.matrix(replace(upper_dt, is.na(upper_dt), means_dt)) %*% w
+          ensemble_dt <- data.table('Point Forecast' = pf[,1],
+                                    'Lo 95' = lb[,1],
+                                    'Hi 95' = ub[,1])
           forecasts_ahead$ENSEMBLE[['Forecast']] <- ensemble_dt
         }
         
         ### CLOSING                                                                 ####
-        reactiveVariables$Forecasts_ahead <- forecasts_ahead
+        reactiveVariables$Forecasts_ahead <- forecasts_ahead[models_to_forecast]
         removeModal()
         message('Left forecast')
       },
