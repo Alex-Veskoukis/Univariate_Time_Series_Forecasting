@@ -38,12 +38,34 @@ server <- function(input, output, session) {
     } 
   })
   
+  
+  # output$observations_to_account <- renderUI({
+  #   req(reactiveVariables$Series)
+  #   # req(nrow(reactiveVariables$Series)>0)
+  #   # req(!is.null(reactiveVariables$SeriesNames)
+  #   # req(length(reactiveVariables$SeriesNames) >= 0)
+  #   
+  #     sliderInput("observations", 
+  #                 label = ("Obseravations to load"), 
+  #                 min = 10,
+  #                 max = nrow(reactiveVariables$Series), value = c(10, nrow(reactiveVariables$Series)))
+  # })
+  
+  observeEvent(reactiveVariables$Series,{
+    if(nrow(reactiveVariables$Series)>0 & !is.null(reactiveVariables$SeriesNames) & length(reactiveVariables$SeriesNames) >= 0){
+      updateSliderInput(session = session,
+      inputId = 'observations',
+      min = 10,
+      max = nrow(reactiveVariables$Series), value = c(10, nrow(reactiveVariables$Series)))
+    }  
+  },ignoreNULL = T)
+  
 
   ##  .................. #< 1160059a5e062dc3e74ef06c65f639c0 ># ..................
   ##  Time series reading                                                     ####
   
   observeEvent(input$submit,{
-    myTimeSeries <- as.numeric(reactiveVariables$Series[[input$variable]])
+    myTimeSeries <- as.numeric(reactiveVariables$Series[[input$variable]])[input$observations[1]:input$observations[2]]
     if(sum(is.na(myTimeSeries)) > 0){
       showToast(
         "error", 
@@ -171,6 +193,7 @@ server <- function(input, output, session) {
   
   observeEvent(c(input$i_file,
                  input$variable,
+                 input$observations,
                  input$frequency_known,
                  input$frequency),{
                    updateActionButton(session, inputId = 'submit',  icon = icon(NULL))
@@ -253,6 +276,7 @@ server <- function(input, output, session) {
                                   allowdrift = input$allowdrift,
                                   allowmean = input$allowmean,
                                   seasonal = input$seasonal,
+                                  stationary = input$stationary,
                                   approximation = input$approximation,
                                   stepwise = input$stepwise))
             if (is(fit, 'try-error')) {
@@ -454,6 +478,7 @@ server <- function(input, output, session) {
           }
           
           
+    
           ### ENSEMPLE                                                                ####
           if( !is.null(to_ensemble())){
             message('Evaluating ENSEMBLE')
@@ -467,7 +492,7 @@ server <- function(input, output, session) {
               ensemble_list[[alg]] <- dt
               fit_list[[alg]] <- forecasts[[alg]]['Fit']
             }
-            ensemble_dt <- Reduce(f = cbind,ensemble_list,)
+            ensemble_dt <- Reduce(f = cbind,ensemble_list)
             if(input$optim){
               product <- try({
               X <- as.matrix(ensemble_dt)
@@ -488,7 +513,9 @@ server <- function(input, output, session) {
               D <- t(X) %*% X
               A <- cbind(rep(1,ncol(X)),diag(ncol(X))) #constraint LHS
               b0 <- c(1,numeric(ncol(X))) # constraint RHS
-              soln <- solve.QP(D,d,A,b0,meq = 1)
+             
+              pd_D_mat <- nearPD(D)
+              soln <- solve.QP(as.matrix(pd_D_mat$mat),d,A,b0,meq = 1)
               w1 <- soln$solution  # Your model wieghts
               w1[w1<0] <- 0
               res <- X %*% w1
@@ -529,11 +556,15 @@ server <- function(input, output, session) {
           
         },
         error = function(e){removeModal()
+          message(toString(e))
           showToast(type = "error",message = paste0(toString(e)), .options = myToastOptions)
-        },
-        warning = function(w){removeModal()
-          showToast(type = "error",message = paste0(toString(w)), .options = myToastOptions)
-        })
+        }
+        # ,
+        # warning = function(w){removeModal()
+        #   message(toString(w))
+        #   showToast(type = "warning",message = paste0(toString(w)), .options = myToastOptions)
+        # }
+        )
       } else {
         showToast(type = "info",message = "Submit the input data before evaluating", .options = myToastOptions)
       }

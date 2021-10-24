@@ -19,6 +19,7 @@ library(foreach)
 library(doParallel)
 library(smooth)
 library(quadprog)
+library(Matrix)
 
 crossprod.na.rm <- function(x, y, na=0) {
   crossprod(replace(x, is.na(x), na), 
